@@ -2,6 +2,7 @@ export interface UserProfile {
   name: string;
   role: string;
   portraitUrl: string;
+  Plan_id: number;
 }
 
 export interface SalesData {
@@ -49,6 +50,8 @@ export interface SystemNotification {
 // Banderas de control de demo
 let simulate401 = false;
 let isUserAuthenticated = true;
+let currentSimulationPlanId = 2;
+let currentSimulationRole = 'General Manager';
 
 export const setSimulate401 = (value: boolean) => {
   simulate401 = value;
@@ -61,6 +64,16 @@ export const setAuthenticatedState = (state: boolean) => {
 };
 
 export const getAuthenticatedState = () => isUserAuthenticated;
+
+export const getSimulationPlanId = () => currentSimulationPlanId;
+export const setSimulationPlanId = (planId: number) => {
+  currentSimulationPlanId = planId;
+};
+
+export const getSimulationRole = () => currentSimulationRole;
+export const setSimulationRole = (role: string) => {
+  currentSimulationRole = role;
+};
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -78,8 +91,9 @@ export const restaurantService = {
     checkAuth();
     return {
       name: 'Marco Rossi',
-      role: 'General Manager',
+      role: currentSimulationRole,
       portraitUrl: 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
+      Plan_id: currentSimulationPlanId,
     };
   },
 

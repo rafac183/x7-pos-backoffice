@@ -2,12 +2,22 @@ import React, { useState, useEffect } from 'react';
 import {
   restaurantService,
   setSimulate401,
-  getSimulate401
+  getSimulate401,
+  setSimulationPlanId,
+  setSimulationRole,
+  getSimulationPlanId,
+  getSimulationRole
 } from '../../services/restaurantService';
 import type {
   UserProfile,
   SystemNotification
 } from '../../services/restaurantService';
+import { navigationService } from '../../services/navigationService';
+import type {
+  NavCategory,
+  NavApplication,
+  NavFeature
+} from '../../services/navigationService';
 import { SalesMetricCard } from './SalesMetricCard';
 import { TablesOccupancyCard } from './TablesOccupancyCard';
 import { KitchenPerformanceCard } from './KitchenPerformanceCard';
@@ -40,6 +50,42 @@ export const RestaurantDashboard: React.FC = () => {
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
   const [isInventoryExpanded, setIsInventoryExpanded] = useState<boolean>(false);
 
+  // Navegación Dinámica por Plan y Permisos
+  const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
+
+  const loadNavigation = async (userProfile: UserProfile) => {
+    try {
+      const menu = await navigationService.loadAndParseNavigation(userProfile.Plan_id, userProfile.role);
+      setNavCategories(menu);
+    } catch (err) {
+      console.error('Error cargando el menú dinámico', err);
+    }
+  };
+
+  useEffect(() => {
+    if (profile) {
+      loadNavigation(profile);
+    }
+  }, [profile, refreshTrigger]);
+
+  // Auto-expandir la categoría y aplicación activas si corresponden al tab activo
+  useEffect(() => {
+    if (navCategories.length > 0 && activeTab) {
+      navCategories.forEach(cat => {
+        cat.applications.forEach(app => {
+          const hasFeat = app.features.some(f => f.id === activeTab);
+          if (hasFeat) {
+            setExpandedCategories(prev => ({ ...prev, [cat.id]: true }));
+            setExpandedApps(prev => ({ ...prev, [app.id]: true }));
+            setActiveCategory(cat.id);
+          }
+        });
+      });
+    }
+  }, [activeTab, navCategories]);
+
   // Estados de UI
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
@@ -67,6 +113,27 @@ export const RestaurantDashboard: React.FC = () => {
       setProfile(userProfile);
       const estTier = await restaurantService.getEstablishmentTier();
       setTier(estTier);
+
+      // Auto-inicializar vistas según el rol si no están inicializadas o son incompatibles
+      if (userProfile.role === 'SaaS Owner') {
+        setActiveCategory('saas');
+        setActiveTab('saas-dashboard');
+      } else {
+        // Para Merchant User, si estaba en saas, cambiar a core/dashboard
+        const isSaaSTab = [
+          'saas-dashboard',
+          'subscription',
+          'companies',
+          'merchants',
+          'users',
+          'reports'
+        ].includes(activeTab);
+
+        if (activeCategory === 'saas' || isSaaSTab) {
+          setActiveCategory('core');
+          setActiveTab('dashboard');
+        }
+      }
     } catch (err: any) {
       if (err.status === 401) {
         setIsAuthLocked(true); // AC 1.3: Bloqueo de sesión
@@ -389,154 +456,99 @@ export const RestaurantDashboard: React.FC = () => {
 
         {/* Sidebar Nav (AC 4.1) */}
         <nav className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1 text-left">
-          {/* Platform SaaS (Expandible) */}
-          <div>
-            <div
-              onClick={() => setActiveCategory(activeCategory === 'saas' ? '' : 'saas')}
-              className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-colors ${
-                activeCategory === 'saas'
-                  ? 'border-l-2 border-[#d51f2c] bg-white/10 text-white font-semibold'
-                  : 'text-white/70 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span className={`material-symbols-outlined text-[20px] ${activeCategory === 'saas' ? 'text-[#d51f2c]' : ''}`}>dashboard</span>
-              <span className="font-sans text-[13px]">Platform SaaS</span>
-            </div>
+          {navCategories.map((cat) => {
+            const isCatExpanded = !!expandedCategories[cat.id];
+            
+            // Determinar si alguna característica dentro de esta categoría está activa
+            const hasActiveTab = cat.applications.some(app => 
+              app.features.some(f => f.id === activeTab)
+            );
+            const isCatActive = activeCategory === cat.id || hasActiveTab;
 
-            {activeCategory === 'saas' && (
-              <div className="mt-1 ml-4 border-l border-white/20 flex flex-col space-y-1">
-                {[
-                  { id: 'saas-dashboard', label: 'Dashboard' },
-                  { id: 'subscription', label: 'Subscription System' },
-                  { id: 'companies', label: 'Companies' },
-                  { id: 'merchants', label: 'Merchants' },
-                  { id: 'users', label: 'Users' },
-                  { id: 'reports', label: 'Reports' },
-                ].map((sub) => {
-                  const isActive = activeTab === sub.id;
-                  return (
-                    <button
-                      key={sub.id}
-                      onClick={() => setActiveTab(sub.id)}
-                      className={`pl-6 py-2 text-[13px] text-left transition-colors flex items-center gap-2 w-full ${
-                        isActive
-                          ? 'text-[#d51f2c] font-semibold bg-white/5 border-l border-[#d51f2c] -ml-[1px]'
-                          : 'text-white/70 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <span className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#d51f2c]' : 'bg-transparent'}`}></span>
-                      {sub.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Categorias del Restaurante (AC 4.2) */}
-          {[
-            { id: 'core', label: 'CORE', icon: 'settings_applications' },
-            { id: 'finance', label: 'Finance & HR', icon: 'payments' },
-            { id: 'inventory', label: 'Inventory', icon: 'inventory_2' },
-            { id: 'operations', label: 'Restaurant Operations', icon: 'restaurant' },
-            { id: 'commerce', label: 'Commerce', icon: 'storefront' },
-            { id: 'growth', label: 'Growth', icon: 'trending_up' },
-          ].map((cat) => {
-            if (cat.id === 'inventory') {
-              const isCatActive = ['categories', 'products', 'modifiers', 'variants', 'food-costing'].includes(activeTab);
-              return (
-                <div key={cat.id} className="w-full text-left">
-                  <div
-                    onClick={() => {
-                      setIsInventoryExpanded(!isInventoryExpanded);
-                    }}
-                    className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-colors ${
-                      isCatActive
-                        ? 'border-l-2 border-[#d51f2c] bg-white/10 text-white font-semibold'
-                        : 'text-white/70 hover:text-white hover:bg-white/5'
+            return (
+              <div key={cat.id} className="w-full text-left">
+                {/* Nivel 1: Categoría */}
+                <div
+                  onClick={() => {
+                    setExpandedCategories(prev => ({
+                      ...prev,
+                      [cat.id]: !prev[cat.id]
+                    }));
+                    setActiveCategory(cat.id);
+                  }}
+                  className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
+                    isCatActive
+                      ? 'border-[#d51f2c] bg-white/10 text-white font-semibold'
+                      : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span 
+                    className={`material-symbols-outlined text-[20px] transition-colors duration-200 ${
+                      isCatActive ? 'text-[#d51f2c]' : 'text-white/70'
                     }`}
                   >
-                    <span className={`material-symbols-outlined text-[20px] ${isCatActive ? 'text-[#d51f2c]' : ''}`}>{cat.icon}</span>
-                    <span className="font-sans text-[13px]">{cat.label}</span>
-                  </div>
-
-                  {isInventoryExpanded && (
-                    <div className="ml-10 mt-1 border-l border-white/10 space-y-1">
-                      {/* Product/Inventory System */}
-                      <div className="pl-6 py-2 text-[#d51f2c] font-medium text-[13px] hover:bg-white/5 transition-colors flex items-center gap-2 cursor-pointer">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#d51f2c]"></span>
-                        Product/Inventory System
-                      </div>
-
-                      {/* Sub-items Nivel 2 */}
-                      <div className="ml-4 mt-1 border-l border-white/10 space-y-1">
-                        {[
-                          { id: 'categories', label: 'Categories' },
-                          { id: 'products', label: 'Products' },
-                          { id: 'modifiers', label: 'Modifiers' },
-                          { id: 'variants', label: 'Variants' },
-                        ].map((sub) => {
-                          const isSubActive = activeTab === sub.id;
-                          return (
-                            <div
-                              key={sub.id}
-                              onClick={() => {
-                                setActiveCategory('inventory');
-                                setActiveTab(sub.id);
-                              }}
-                              className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-colors ${
-                                isSubActive
-                                  ? 'text-[#222222] font-semibold bg-white/50 border-l-2 border-[#222222] -ml-[1px]'
-                                  : 'text-white/60 hover:text-white'
-                              }`}
-                            >
-                              {sub.label}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Food costing */}
-                      <div
-                        onClick={() => {
-                          setActiveCategory('inventory');
-                          setActiveTab('food-costing');
-                        }}
-                        className={`pl-6 py-2 text-[#d51f2c] font-medium text-[13px] hover:bg-white/5 transition-colors flex items-center gap-2 cursor-pointer ${
-                          activeTab === 'food-costing' ? 'font-semibold bg-white/5 border-l border-[#d51f2c] -ml-[1px]' : ''
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#d51f2c]"></span>
-                        Food costing
-                      </div>
-                    </div>
-                  )}
+                    {cat.icon}
+                  </span>
+                  <span className="font-sans text-[13px] tracking-tight">{cat.name}</span>
                 </div>
-              );
-            }
 
-            const isSelected =
-              (activeCategory === cat.id && !['categories', 'products', 'modifiers', 'variants', 'food-costing'].includes(activeTab)) ||
-              (cat.id === 'operations' && activeTab === 'dashboard');
-            return (
-              <div
-                key={cat.id}
-                onClick={() => {
-                  setActiveCategory(cat.id);
-                  if (cat.id === 'operations') {
-                    setActiveTab('dashboard');
-                  } else {
-                    setActiveTab(cat.id);
-                  }
-                }}
-                className={`py-2 flex items-center gap-3 cursor-pointer transition-all duration-200 ${
-                  isSelected
-                    ? 'side-nav-active'
-                    : 'side-nav-inactive hover:bg-white/10 text-white/70 hover:text-white'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
-                <span className="font-body-sm text-body-sm">{cat.label}</span>
+                {/* Nivel 2: Aplicaciones */}
+                {isCatExpanded && (
+                  <div className="mt-1 flex flex-col space-y-1">
+                    {cat.applications.map((app) => {
+                      const isAppExpanded = !!expandedApps[app.id];
+                      const isAppSelected = app.features.some(f => f.id === activeTab);
+
+                      return (
+                        <div key={app.id} className="w-full text-left">
+                          <div
+                            onClick={() => {
+                              setExpandedApps(prev => ({
+                                ...prev,
+                                [app.id]: !prev[app.id]
+                              }));
+                            }}
+                            className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
+                              isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
+                            }`}
+                          >
+                            <span 
+                              className={`w-1 h-1 rounded-full ${
+                                isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/50'
+                              }`}
+                            ></span>
+                            <span>{app.name}</span>
+                          </div>
+
+                          {/* Nivel 3: Características */}
+                          {isAppExpanded && (
+                            <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
+                              {app.features.map((feat) => {
+                                const isFeatActive = activeTab === feat.id;
+                                return (
+                                  <div
+                                    key={feat.id}
+                                    onClick={() => {
+                                      setActiveCategory(cat.id);
+                                      setActiveTab(feat.id);
+                                    }}
+                                    className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
+                                      isFeatActive
+                                        ? 'bg-white/50 text-[#222222] font-semibold border-l-2 border-[#222222] -ml-[2px]'
+                                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                                    }`}
+                                  >
+                                    {feat.name}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -763,15 +775,70 @@ export const RestaurantDashboard: React.FC = () => {
         </button>
 
         {showDemoPanel && (
-          <div className="absolute bottom-12 left-0 w-64 bg-[#222222] border border-white/10 p-4 rounded shadow-2xl space-y-2 animate-fade-in text-left">
-            {isSaaSTab ? (
-              <>
-                <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider">SaaS Demo Controls</p>
-                <p className="text-[10px] text-white/50 mb-2">Simula condiciones de error en las llamadas de API de SaaS.</p>
+          <div className="absolute bottom-12 left-0 w-64 bg-[#222222] border border-white/10 p-4 rounded shadow-2xl space-y-3 animate-fade-in text-left">
+            <div>
+              <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider">Demo Simulation Controls</p>
+              <p className="text-[9px] text-white/50 mb-2">Simula condiciones en caliente.</p>
+            </div>
+
+            {/* Simulación de Rol (Entorno) */}
+            <div className="border-t border-white/10 pt-2">
+              <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Role / Environment</p>
+              <select
+                value={profile?.role || 'General Manager'}
+                onChange={(e) => {
+                  const role = e.target.value;
+                  setSimulationRole(role);
+                  if (role === 'SaaS Owner') {
+                    setActiveCategory('saas');
+                    setActiveTab('saas-dashboard');
+                  } else {
+                    setActiveCategory('core');
+                    setActiveTab('dashboard');
+                  }
+                  setRefreshTrigger(p => p + 1);
+                }}
+                className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
+              >
+                <option value="General Manager">General Manager (Merchant)</option>
+                <option value="SaaS Owner">SaaS Owner (Platform SaaS)</option>
+              </select>
+            </div>
+
+            {/* Simulación de Plan (Solo para Merchant) */}
+            {profile?.role !== 'SaaS Owner' && (
+              <div className="border-t border-white/10 pt-2">
+                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
+                <select
+                  value={profile?.Plan_id || 2}
+                  onChange={(e) => {
+                    const planId = parseInt(e.target.value);
+                    setSimulationPlanId(planId);
+                    if (planId === 1 && (activeCategory === 'finance' || activeCategory === 'growth')) {
+                      setActiveCategory('core');
+                      setActiveTab('dashboard');
+                    } else if (planId === 2 && activeCategory === 'growth') {
+                      setActiveCategory('core');
+                      setActiveTab('dashboard');
+                    }
+                    setRefreshTrigger(p => p + 1);
+                  }}
+                  className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
+                >
+                  <option value="1">Plan 1: Quick Service</option>
+                  <option value="2">Plan 2: Full Restaurant</option>
+                  <option value="3">Plan 3: Enterprise</option>
+                </select>
+              </div>
+            )}
+
+            {/* Simulación de Fallo de API en SaaS */}
+            {profile?.role === 'SaaS Owner' ? (
+              <div className="border-t border-white/10 pt-2">
+                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">SaaS Status</p>
                 <button
                   onClick={() => {
                     handleToggleApiFailure();
-                    setShowDemoPanel(false);
                   }}
                   className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
                     apiFailedToggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
@@ -779,15 +846,13 @@ export const RestaurantDashboard: React.FC = () => {
                 >
                   {apiFailedToggle ? 'Simular API Online' : 'Simular Error de API'}
                 </button>
-              </>
+              </div>
             ) : (
-              <>
-                <p className="font-bold text-[#d51f2c] uppercase text-[10px] tracking-wider">Restaurant Demo Controls</p>
-                <p className="text-[10px] text-white/50 mb-2">Simula la expiración de sesión del restaurante.</p>
+              <div className="border-t border-white/10 pt-2">
+                <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Auth Session</p>
                 <button
                   onClick={() => {
                     handleToggle401();
-                    setShowDemoPanel(false);
                   }}
                   className={`w-full py-1.5 px-2 text-center text-xs font-bold text-white rounded transition-colors ${
                     demo401Toggle ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
@@ -795,7 +860,7 @@ export const RestaurantDashboard: React.FC = () => {
                 >
                   {demo401Toggle ? 'Simular Sesión Ok (200)' : 'Forzar Expiración (401)'}
                 </button>
-              </>
+              </div>
             )}
           </div>
         )}
