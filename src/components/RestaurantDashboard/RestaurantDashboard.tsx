@@ -513,7 +513,7 @@ export const RestaurantDashboard: React.FC = () => {
         isSidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
       }`}>
         {/* Sidebar Nav (AC 4.1) */}
-        <nav className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1 text-left">
+        <nav className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll py-4 space-y-1 text-left">
           {navCategories.map((cat) => {
             const isCatExpanded = !!expandedCategories[cat.id];
             
