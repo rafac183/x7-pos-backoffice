@@ -306,6 +306,7 @@ export const SubscriptionPlansView: React.FC = () => {
             <option value="All Status">All Status</option>
             <option value="active">active</option>
             <option value="inactive">inactive</option>
+            <option value="deleted">deleted</option>
           </select>
           <button
             type="button"
@@ -392,7 +393,7 @@ export const SubscriptionPlansView: React.FC = () => {
                 filtered.map((plan) => (
                   <tr
                     key={plan.id}
-                    className={`group hover:bg-[#f8f3eb] transition-colors${plan.status === 'inactive' ? ' opacity-75' : ''}`}
+                    className={`group hover:bg-[#f8f3eb] transition-colors${plan.status !== 'active' ? ' opacity-75' : ''}`}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -427,9 +428,13 @@ export const SubscriptionPlansView: React.FC = () => {
                         <span className="bg-green-500/10 text-green-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                           active
                         </span>
-                      ) : (
+                      ) : plan.status === 'inactive' ? (
                         <span className="bg-[#5f5e5e]/20 text-[#5f5e5e] text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                           inactive
+                        </span>
+                      ) : (
+                        <span className="bg-red-500/10 text-red-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
+                          deleted
                         </span>
                       )}
                     </td>

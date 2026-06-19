@@ -145,6 +145,22 @@ describe('SubscriptionPlansView — table rendering', () => {
     const row = legacyCell.closest('tr');
     expect(row).toHaveClass('opacity-75');
   });
+
+  it('renders deleted status badge', async () => {
+    renderView();
+    await waitFor(() => {
+      expect(screen.getByText('deleted')).toBeInTheDocument();
+    });
+  });
+
+  it('deleted plan rows have opacity-75 class', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Archived Gold')).toBeInTheDocument());
+
+    const deletedCell = screen.getByText('Archived Gold');
+    const row = deletedCell.closest('tr');
+    expect(row).toHaveClass('opacity-75');
+  });
 });
 
 describe('SubscriptionPlansView — filter strip', () => {
@@ -255,6 +271,15 @@ describe('SubscriptionPlansView — filter strip', () => {
     expect(options).toContain('All Cycles');
     expect(options).toContain('monthly');
     expect(options).toContain('yearly');
+  });
+
+  it('status filter includes deleted option', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    const select = screen.getByTestId('filter-status') as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => o.value);
+    expect(options).toContain('deleted');
   });
 });
 
