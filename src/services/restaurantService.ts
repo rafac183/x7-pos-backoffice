@@ -2,6 +2,7 @@ export interface UserProfile {
   name: string;
   role: string;
   portraitUrl: string;
+  Plan_id: number;
 }
 
 export interface SalesData {
@@ -49,6 +50,8 @@ export interface SystemNotification {
 // Banderas de control de demo
 let simulate401 = false;
 let isUserAuthenticated = true;
+let currentSimulationPlanId = 2;
+let currentSimulationRole = 'General Manager';
 
 export const setSimulate401 = (value: boolean) => {
   simulate401 = value;
@@ -61,6 +64,16 @@ export const setAuthenticatedState = (state: boolean) => {
 };
 
 export const getAuthenticatedState = () => isUserAuthenticated;
+
+export const getSimulationPlanId = () => currentSimulationPlanId;
+export const setSimulationPlanId = (planId: number) => {
+  currentSimulationPlanId = planId;
+};
+
+export const getSimulationRole = () => currentSimulationRole;
+export const setSimulationRole = (role: string) => {
+  currentSimulationRole = role;
+};
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -78,8 +91,9 @@ export const restaurantService = {
     checkAuth();
     return {
       name: 'Marco Rossi',
-      role: 'General Manager',
+      role: currentSimulationRole,
       portraitUrl: 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
+      Plan_id: currentSimulationPlanId,
     };
   },
 
@@ -230,4 +244,44 @@ export const restaurantService = {
     await delay(500);
     isUserAuthenticated = false;
   },
+};
+
+const originalFetch = window.fetch;
+window.fetch = async function (input, _init) {
+  let url = '';
+  try {
+    url = typeof input === 'string' ? input : (input ? (input as any).url || (input as any).href || '' : '');
+  } catch (e) {
+    console.error('Error parsing fetch input url:', e);
+  }
+  
+  if (url && typeof url === 'string') {
+    if (url.includes('/api/v1/auth/profile')) {
+      const profile = {
+        name: 'Marco Rossi',
+        role: currentSimulationRole,
+        portraitUrl: currentSimulationRole === 'SaaS Owner' 
+          ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&q=80' 
+          : 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
+        Plan_id: currentSimulationPlanId
+      };
+      return new Response(JSON.stringify(profile), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    if (url.includes('/api/v1/establishments/tier')) {
+      let tierName = 'Full Restaurant';
+      if (currentSimulationPlanId === 1) tierName = 'Quick Service';
+      if (currentSimulationPlanId === 3) tierName = 'Enterprise';
+      
+      return new Response(JSON.stringify({ tier: tierName }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+  
+  return originalFetch(input, _init);
 };
