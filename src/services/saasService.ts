@@ -260,6 +260,25 @@ export const saasService = {
     return response.data;
   },
 
+  async updateApplication(
+    app: Application,
+    updates: { name: string; description: string; category: string },
+  ): Promise<Application> {
+    const response = await saasApiFetch<{ data: Application }>(
+      `applications/${app.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: updates.name,
+          description: updates.description,
+          category: updates.category,
+          status: app.status,
+        }),
+      },
+    );
+    return response.data;
+  },
+
   async toggleApplicationInactive(app: Application): Promise<Application> {
     const response = await saasApiFetch<{ data: Application }>(
       `applications/${app.id}`,
@@ -271,6 +290,22 @@ export const saasService = {
           category: app.category,
           status: 'inactive',
         }),
+      },
+    );
+    return response.data;
+  },
+
+  async createApplication(dto: {
+    name: string;
+    description: string;
+    category: string;
+    status: 'active' | 'inactive';
+  }): Promise<Application> {
+    const response = await saasApiFetch<{ data: Application }>(
+      'applications',
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
       },
     );
     return response.data;
