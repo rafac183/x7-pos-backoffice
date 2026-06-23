@@ -391,12 +391,6 @@ export const SaaSDashboard: React.FC = () => {
         </div>
       </main>
 
-      {/* Global Footer */}
-      <footer className="ml-64 border-t border-[#e8e2d8] bg-[#f1ece4] px-8 py-4 flex items-center justify-between text-[11px] text-[#5f5e5e]">
-        <span className="font-bold uppercase tracking-widest">X7 Platform SaaS Backoffice</span>
-        <span>Enterprise Edition · © 2026 X7 Technologies. All rights reserved.</span>
-      </footer>
-
       {/* Contextual FAB (Only on main dashboard) */}
       {activeTab === 'dashboard' && (
         <button
