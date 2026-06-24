@@ -367,7 +367,7 @@ describe('PlatformApplicationsView — Quick Launch panel', () => {
     render(<PlatformApplicationsView />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'SUBSCRIPTION PLANS' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'FEATURE CATALOG INDEX' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'FEATURE CATALOG' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'ACTIVE LIVE INSTALLS' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'EMERGENCY SUPPORT' })).toBeInTheDocument();
     });
@@ -381,11 +381,11 @@ describe('PlatformApplicationsView — Quick Launch panel', () => {
     expect(onNavigate).toHaveBeenCalledWith('subscription');
   });
 
-  it('calls onNavigate with "subscription-features" when FEATURE CATALOG INDEX is clicked', async () => {
+  it('calls onNavigate with "subscription-features" when FEATURE CATALOG is clicked', async () => {
     const onNavigate = vi.fn();
     render(<PlatformApplicationsView onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole('button', { name: 'FEATURE CATALOG INDEX' }));
-    await userEvent.click(screen.getByRole('button', { name: 'FEATURE CATALOG INDEX' }));
+    await waitFor(() => screen.getByRole('button', { name: 'FEATURE CATALOG' }));
+    await userEvent.click(screen.getByRole('button', { name: 'FEATURE CATALOG' }));
     expect(onNavigate).toHaveBeenCalledWith('subscription-features');
   });
 

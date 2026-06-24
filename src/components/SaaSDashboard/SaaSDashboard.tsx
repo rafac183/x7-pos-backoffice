@@ -6,6 +6,7 @@ import { SaasLoginOverlay } from './SaasLoginOverlay';
 import { isSaasAuthenticated } from '../../lib/saas-auth-storage';
 import logoX7 from '../../assets/logo-x7.png';
 import { PlatformApplicationsView } from './PlatformApplicationsView';
+import { PlatformFeatureCatalogView } from './PlatformFeatureCatalogView';
 
 export const SaaSDashboard: React.FC = () => {
   const [saasAuthenticated, setSaasAuthenticated] = useState(isSaasAuthenticated);
@@ -80,19 +81,15 @@ export const SaaSDashboard: React.FC = () => {
       return <PlatformApplicationsView onNavigate={handleNavigateView} />;
     }
 
+    if (activeTab === 'subscription-features') {
+      return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
+    }
+
     if (
-      activeTab === 'subscription-features' ||
       activeTab === 'subscription-payments' ||
       activeTab === 'subscription-live-installs'
     ) {
       const subConfig = {
-        'subscription-features': {
-          icon: 'featured_play_list',
-          title: 'Feature Catalog Map',
-          desc: 'Master feature flags and platform capability tables.',
-          backLabel: 'Back to Subscription Plans',
-          backTab: 'subscription',
-        },
         'subscription-payments': {
           icon: 'payments',
           title: 'Subscription Payments',
@@ -107,7 +104,7 @@ export const SaaSDashboard: React.FC = () => {
           backLabel: 'Back to Applications',
           backTab: 'subscription-applications',
         },
-      }[activeTab as 'subscription-features' | 'subscription-payments' | 'subscription-live-installs'];
+      }[activeTab as 'subscription-payments' | 'subscription-live-installs'];
       return (
         <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">{subConfig.icon}</span>
@@ -329,14 +326,20 @@ export const SaaSDashboard: React.FC = () => {
           {/* Dashboard Header */}
           <div className="flex justify-between items-end">
             <div>
-              {(activeTab === 'subscription-applications' || activeTab === 'subscription-live-installs') && (
+              {(activeTab === 'subscription-applications' ||
+              activeTab === 'subscription-live-installs' ||
+              activeTab === 'subscription-features') && (
                 <nav className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] mb-1">
                   <span>SaaS Admin</span>
                   <span className="text-[#d51f2c]">›</span>
                   <span>Platform Architecture</span>
                   <span className="text-[#d51f2c]">›</span>
                   <span className="text-[#1d1c17]">
-                    {activeTab === 'subscription-applications' ? 'Applications' : 'Live Installs'}
+                    {activeTab === 'subscription-applications'
+                      ? 'Applications'
+                      : activeTab === 'subscription-live-installs'
+                        ? 'Live Installs'
+                        : 'Feature Catalog'}
                   </span>
                 </nav>
               )}

@@ -30,3 +30,11 @@ export interface Application {
   category: string;
   status: 'active' | 'inactive';
 }
+
+export interface PlatformFeature {
+  id: number;
+  name: string;
+  description: string;
+  Unit: string;
+  status: string;
+}

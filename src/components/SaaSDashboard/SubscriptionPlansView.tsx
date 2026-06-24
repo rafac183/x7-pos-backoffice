@@ -19,7 +19,11 @@ const EMPTY_FORM = {
 const formatPrice = (price: number): string =>
   `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export const SubscriptionPlansView: React.FC = () => {
+interface SubscriptionPlansViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const SubscriptionPlansView: React.FC<SubscriptionPlansViewProps> = ({ onNavigate }) => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -482,14 +486,14 @@ export const SubscriptionPlansView: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button type="button" className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            BILLING OVERVIEW
+          <button type="button" onClick={() => onNavigate?.('subscription-applications')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
+            PLATFORM APPLICATIONS
           </button>
-          <button type="button" className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            EXPORT PLANS
+          <button type="button" onClick={() => onNavigate?.('subscription-features')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
+            FEATURE CATALOG
           </button>
-          <button type="button" className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
-            RUN REVENUE REPORT
+          <button type="button" onClick={() => onNavigate?.('subscription-payments')} className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform">
+            SUBSCRIPTION PAYMENTS
           </button>
           <button type="button" className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-6 py-3 rounded hover:bg-[#930015] hover:-translate-y-0.5 transition-all">
             EMERGENCY SUPPORT

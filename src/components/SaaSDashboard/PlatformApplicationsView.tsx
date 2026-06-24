@@ -692,7 +692,7 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
             onClick={() => onNavigate?.('subscription-features')}
             className="bg-white text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest px-6 py-3 border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-transform"
           >
-            FEATURE CATALOG INDEX
+            FEATURE CATALOG
           </button>
           <button
             type="button"
