@@ -150,13 +150,14 @@ interface EditFeatureDialogProps {
   feature: PlatformFeature;
   submitting: boolean;
   onClose: () => void;
-  onSave: (dto: { name: string; description: string; Unit: string }) => void;
+  onSave: (dto: { name: string; description: string; Unit: string; status: string }) => void;
 }
 
 const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitting, onClose, onSave }) => {
   const [name, setName] = React.useState(feature.name);
   const [description, setDescription] = React.useState(feature.description);
   const [unit, setUnit] = React.useState(feature.Unit);
+  const [status, setStatus] = React.useState(feature.status);
 
   const nameExceeded = name.length > 100;
   const unitExceeded = unit.length > 50;
@@ -237,6 +238,24 @@ const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitti
               placeholder="e.g. unit, user, gb"
             />
           </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="edit-feature-status"
+              className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
+            >
+              Status
+            </label>
+            <select
+              id="edit-feature-status"
+              aria-label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all"
+            >
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button"
@@ -248,7 +267,7 @@ const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitti
             </button>
             <button
               type="button"
-              onClick={() => onSave({ name: name.trim(), description: description.trim(), Unit: unit.trim() })}
+              onClick={() => onSave({ name: name.trim(), description: description.trim(), Unit: unit.trim(), status })}
               disabled={submitting || !isValid}
               className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
             >
@@ -342,7 +361,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
     }
   };
 
-  const handleEditSave = async (dto: { name: string; description: string; Unit: string }) => {
+  const handleEditSave = async (dto: { name: string; description: string; Unit: string; status: string }) => {
     if (!editingFeature) return;
     setEditSubmitting(true);
     try {
@@ -431,7 +450,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
               className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-base">add</span>
-              + CREATE FEATURE
+              CREATE FEATURE
             </button>
           )}
         </div>
@@ -550,16 +569,17 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <button
-                          type="button"
-                          aria-label={`Edit ${feature.name}`}
-                          onClick={() => setEditingFeature(feature)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 px-3 py-1 border border-[#e8e2d8] text-[#1d1c17] text-[10px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] hover:border-[#ae001a] hover:text-[#ae001a]"
-                        >
-                          <span className="material-symbols-outlined text-sm">edit</span>
-                          Edit
-                        </button>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${feature.name}`}
+                            onClick={() => setEditingFeature(feature)}
+                            className="p-1 transition-colors hover:text-[#ae001a]"
+                          >
+                            <span className="material-symbols-outlined text-xl">edit</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
