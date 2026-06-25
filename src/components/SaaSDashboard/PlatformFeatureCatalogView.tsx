@@ -285,6 +285,62 @@ const EditFeatureDialog: React.FC<EditFeatureDialogProps> = ({ feature, submitti
   );
 };
 
+interface DeleteFeatureDialogProps {
+  feature: PlatformFeature;
+  submitting: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+const DeleteFeatureDialog: React.FC<DeleteFeatureDialogProps> = ({ feature, submitting, onClose, onConfirm }) => (
+  <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+    <div className="bg-white w-full max-w-md shadow-2xl">
+      <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+          DELETE FEATURE
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          className="text-white/50 hover:text-white transition-colors disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div className="p-6 space-y-5">
+        <p className="text-sm text-[#1d1c17] leading-relaxed">
+          Deleting &ldquo;{feature.name}&rdquo; will prevent it from being assigned to new subscription
+          plans. The record is retained for historical reference.
+        </p>
+        <div className="flex justify-end gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {submitting && (
+              <span className="material-symbols-outlined text-base animate-spin">
+                progress_activity
+              </span>
+            )}
+            {submitting ? 'Deleting...' : 'Delete Feature'}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 function fuzzyMatch(query: string, target: string): boolean {
   let qi = 0;
   for (let i = 0; i < target.length && qi < query.length; i++) {
@@ -305,6 +361,8 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [editingFeature, setEditingFeature] = useState<PlatformFeature | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deletingFeature, setDeletingFeature] = useState<PlatformFeature | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   useEffect(() => {
     saasService.getFeatures()
@@ -382,6 +440,27 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
     }
   };
 
+  const handleDeleteConfirm = async () => {
+    if (!deletingFeature) return;
+    setDeleteSubmitting(true);
+    try {
+      const updated = await saasService.deleteFeature(deletingFeature.id);
+      setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      setDeletingFeature(null);
+      setToast({ message: 'Feature deleted successfully', type: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete feature';
+      setDeletingFeature(null);
+      if (msg === 'SESSION_EXPIRED') {
+        setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
+      } else {
+        setToast({ message: msg, type: 'error' });
+      }
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="border border-red-300 bg-red-50 p-8 text-center">
@@ -432,6 +511,7 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
             <option value="All Status">All Status</option>
             <option value="active">active</option>
             <option value="inactive">inactive</option>
+            <option value="deleted">deleted</option>
           </select>
           {hasActiveFilter && (
             <button
@@ -563,6 +643,10 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
                           <span className="bg-green-500/10 text-green-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                             active
                           </span>
+                        ) : feature.status === 'deleted' ? (
+                          <span className="bg-red-500/10 text-red-600 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
+                            deleted
+                          </span>
                         ) : (
                           <span className="bg-[#5f5e5e]/20 text-[#5f5e5e] text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                             inactive
@@ -575,10 +659,25 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
                             type="button"
                             aria-label={`Edit ${feature.name}`}
                             onClick={() => setEditingFeature(feature)}
-                            className="p-1 transition-colors hover:text-[#ae001a]"
+                            disabled={feature.status === 'deleted'}
+                            className={`p-1 transition-colors ${
+                              feature.status === 'deleted'
+                                ? 'opacity-50 cursor-not-allowed'
+                                : 'hover:text-[#ae001a]'
+                            }`}
                           >
                             <span className="material-symbols-outlined text-xl">edit</span>
                           </button>
+                          {feature.status !== 'deleted' && (
+                            <button
+                              type="button"
+                              aria-label={`Delete ${feature.name}`}
+                              onClick={() => setDeletingFeature(feature)}
+                              className="p-1 hover:text-red-600 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-xl">delete</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -666,6 +765,15 @@ export const PlatformFeatureCatalogView: React.FC<PlatformFeatureCatalogViewProp
           submitting={editSubmitting}
           onClose={() => setEditingFeature(null)}
           onSave={handleEditSave}
+        />
+      )}
+
+      {deletingFeature && (
+        <DeleteFeatureDialog
+          feature={deletingFeature}
+          submitting={deleteSubmitting}
+          onClose={() => setDeletingFeature(null)}
+          onConfirm={handleDeleteConfirm}
         />
       )}
 
