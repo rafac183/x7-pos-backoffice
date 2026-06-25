@@ -329,11 +329,19 @@ export const saasService = {
 
   async updateFeature(
     id: number,
-    dto: { name: string; description: string; Unit: string },
+    dto: { name: string; description: string; Unit: string; status: string },
   ): Promise<PlatformFeature> {
     const response = await saasApiFetch<{ data: PlatformFeature }>(
       `features/${id}`,
       { method: 'PATCH', body: JSON.stringify(dto) },
+    );
+    return response.data;
+  },
+
+  async deleteFeature(id: number): Promise<PlatformFeature> {
+    const response = await saasApiFetch<{ data: PlatformFeature }>(
+      `features/${id}`,
+      { method: 'DELETE' },
     );
     return response.data;
   },

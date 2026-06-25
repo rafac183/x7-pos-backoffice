@@ -10,6 +10,7 @@ vi.mock('../../services/saasService', () => ({
     getFeatures: vi.fn(),
     createFeature: vi.fn(),
     updateFeature: vi.fn(),
+    deleteFeature: vi.fn(),
   },
 }));
 
@@ -658,6 +659,7 @@ describe('PlatformFeatureCatalogView — Edit Feature submit', () => {
         name: UPDATED_FEATURE.name,
         description: 'Provides advanced data analytics capabilities.',
         Unit: 'user',
+        status: 'active',
       });
     });
   });
