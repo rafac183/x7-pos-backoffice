@@ -46,7 +46,7 @@ body.saas-active {
   letter-spacing: -0.02em !important;
   font-weight: 600 !important;
   margin: 0 !important;
-  color: #222222 !important;
+  color: #222222;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -56,7 +56,7 @@ body.saas-active {
   line-height: 1.3 !important;
   font-weight: 600 !important;
   margin: 0 !important;
-  color: #222222 !important;
+  color: #222222;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -66,7 +66,7 @@ body.saas-active {
   line-height: 1.4 !important;
   font-weight: 500 !important;
   margin: 0 !important;
-  color: #222222 !important;
+  color: #222222;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -150,7 +150,7 @@ body.restaurant-active {
   letter-spacing: -0.02em !important;
   font-weight: 600 !important;
   margin: 0 !important;
-  color: #222222 !important;
+  color: #222222;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -160,7 +160,7 @@ body.restaurant-active {
   line-height: 1.3 !important;
   font-weight: 600 !important;
   margin: 0 !important;
-  color: #222222 !important;
+  color: #222222;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -170,7 +170,7 @@ body.restaurant-active {
   line-height: 1.4 !important;
   font-weight: 500 !important;
   margin: 0 !important;
-  color: #222222 !important;
+  color: #222222;
   font-family: 'Poppins', sans-serif !important;
 }
 
@@ -238,17 +238,19 @@ body.restaurant-active {
   letter-spacing: 0.05em;
 }
 
-/* Scrollbars personalizadas del Restaurant Dashboard */
-.restaurant-active .custom-scrollbar::-webkit-scrollbar {
+/* Scrollbars personalizadas universales */
+.custom-scrollbar::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 
-.restaurant-active .custom-scrollbar::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.restaurant-active .custom-scrollbar::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background: #444444;
+  border-radius: 2px;
 }
 
 /* Forzar que el título del Sidebar sea siempre blanco y de tamaño apropiado contra su fondo oscuro */
