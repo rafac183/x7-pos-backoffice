@@ -1075,6 +1075,8 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       <NavHubBar
         title="KDS Ecosystem Nav Hub"
         titleIcon="space_dashboard"
+        onBackToDashboard={() => onNavigate?.('kitchen-kds-hub')}
+        backToDashboardLabel="KDS COMMAND HUB"
         items={[
           {
             id: 'kitchen-stations',
