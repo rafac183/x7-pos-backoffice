@@ -15,10 +15,11 @@ export const KitchenKDSHubView: React.FC<KitchenKDSHubViewProps> = ({
   onOpenLiveMonitor,
 }) => {
   const [stations, setStations] = useState<KitchenStation[]>([]);
+  const [devicesCount, setDevicesCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const fetchStations = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         const token = getAccessToken();
@@ -27,31 +28,39 @@ export const KitchenKDSHubView: React.FC<KitchenKDSHubViewProps> = ({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
-        const res = await fetch(`${API_BASE}/kitchen-station`, { headers });
-        if (res.ok) {
-          const json = await res.json();
+        const [stRes, devRes] = await Promise.all([
+          fetch(`${API_BASE}/kitchen-station`, { headers }),
+          fetch(`${API_BASE}/kitchen-display-devices`, { headers }),
+        ]);
+
+        if (stRes.ok) {
+          const json = await stRes.json();
           const rawList = Array.isArray(json) ? json : json.data || [];
-          const dataList = rawList.map((st: any) => ({
-            ...st,
-            is_active: st.isActive ?? st.is_active ?? true,
-            station_type: st.stationType ?? st.station_type ?? 'PREP',
-            display_mode: st.displayMode ?? st.display_mode ?? 'AUTO',
-            display_order: st.displayOrder ?? st.display_order ?? 1,
-            printer_name: st.printerName ?? st.printer_name ?? null,
-            status: st.status || 'active',
-          }));
-          setStations(dataList);
-        } else {
-          setStations([]);
+          setStations(
+            rawList.map((st: any) => ({
+              ...st,
+              is_active: st.isActive ?? st.is_active ?? true,
+              station_type: st.stationType ?? st.station_type ?? 'PREP',
+              display_mode: st.displayMode ?? st.display_mode ?? 'AUTO',
+              display_order: st.displayOrder ?? st.display_order ?? 1,
+              printer_name: st.printerName ?? st.printer_name ?? null,
+              status: st.status || 'active',
+            }))
+          );
+        }
+
+        if (devRes.ok) {
+          const devJson = await devRes.json();
+          const devList = Array.isArray(devJson) ? devJson : devJson.data || [];
+          setDevicesCount(devList.filter((d: any) => (d.status ?? 'active') === 'active').length);
         }
       } catch (err) {
         console.error('Error loading KDS Hub metrics:', err);
-        setStations([]);
       } finally {
         setLoading(false);
       }
     };
-    fetchStations();
+    fetchData();
   }, []);
 
   // Métricas calculadas en tiempo real
@@ -76,7 +85,7 @@ export const KitchenKDSHubView: React.FC<KitchenKDSHubViewProps> = ({
       subtitle: 'Terminals & Hardware',
       description: 'Register kitchen screens, monitor hardware status, and pair bump bars.',
       icon: 'desktop_windows',
-      badge: `${boundPrintersCount} Hardware Bound`,
+      badge: `${devicesCount || boundPrintersCount} Hardware Bound`,
       badgeColor: 'bg-blue-100 text-blue-800 border-blue-300',
       actionText: 'Manage Devices',
     },
@@ -158,67 +167,67 @@ export const KitchenKDSHubView: React.FC<KitchenKDSHubViewProps> = ({
       {/* 2. Hero KPI Health Strip (4 Cuadrados pequeños obligatoriamente en 1 sola línea horizontal) */}
       <div className="grid grid-cols-4 gap-3 w-full">
         {/* Card 1: Active KDS Stations */}
-        <div className="bg-[#222222] text-white p-3.5 rounded-lg border-t-4 border-[#ae001a] shadow-sm flex flex-col justify-between h-32 group hover:border-white transition-all duration-200 min-w-0">
+        <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-red-500 hover:border-red-400 shadow-sm flex flex-col justify-between h-32 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer min-w-0">
           <div className="flex items-center justify-between w-full min-w-0 gap-1">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 truncate">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors truncate">
               Active Stations
             </span>
-            <div className="w-7 h-7 rounded bg-[#ae001a]/20 flex items-center justify-center text-[#ae001a] shrink-0">
-              <span className="material-symbols-outlined text-base">soup_kitchen</span>
+            <div className="w-7 h-7 rounded bg-red-500/20 group-hover:bg-red-500 flex items-center justify-center transition-all shrink-0">
+              <span className="material-symbols-outlined text-base text-red-400 group-hover:text-white transition-colors">soup_kitchen</span>
             </div>
           </div>
           <div>
             <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
               {loading ? '...' : activeStations.length}
             </p>
-            <p className="text-[9px] text-zinc-400 font-medium mt-1 truncate">Prep & pass lines</p>
+            <p className="text-[9px] text-zinc-400 group-hover:text-zinc-300 font-medium mt-1 truncate">Prep & pass lines</p>
           </div>
         </div>
 
         {/* Card 2: Hardware Printers Bound */}
-        <div className="bg-[#222222] text-white p-3.5 rounded-lg border-t-4 border-blue-500 shadow-sm flex flex-col justify-between h-32 group hover:border-white transition-all duration-200 min-w-0">
+        <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-blue-500 hover:border-blue-300 shadow-sm flex flex-col justify-between h-32 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer min-w-0">
           <div className="flex items-center justify-between w-full min-w-0 gap-1">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 truncate">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors truncate">
               Printers Bound
             </span>
-            <div className="w-7 h-7 rounded bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-              <span className="material-symbols-outlined text-base">print</span>
+            <div className="w-7 h-7 rounded bg-blue-500/20 group-hover:bg-blue-500 flex items-center justify-center transition-all shrink-0">
+              <span className="material-symbols-outlined text-base text-blue-400 group-hover:text-white transition-colors">print</span>
             </div>
           </div>
           <div>
             <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
               {loading ? '...' : boundPrintersCount}
             </p>
-            <p className="text-[9px] text-zinc-400 font-medium mt-1 truncate">Hardware printers</p>
+            <p className="text-[9px] text-zinc-400 group-hover:text-zinc-300 font-medium mt-1 truncate">Hardware printers</p>
           </div>
         </div>
 
         {/* Card 3: Expo / Pass Stations */}
-        <div className="bg-[#222222] text-white p-3.5 rounded-lg border-t-4 border-amber-500 shadow-sm flex flex-col justify-between h-32 group hover:border-white transition-all duration-200 min-w-0">
+        <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-amber-500 hover:border-amber-300 shadow-sm flex flex-col justify-between h-32 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer min-w-0">
           <div className="flex items-center justify-between w-full min-w-0 gap-1">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 truncate">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors truncate">
               Expo / Pass
             </span>
-            <div className="w-7 h-7 rounded bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
-              <span className="material-symbols-outlined text-base">star</span>
+            <div className="w-7 h-7 rounded bg-amber-500/20 group-hover:bg-amber-500 flex items-center justify-center transition-all shrink-0">
+              <span className="material-symbols-outlined text-base text-amber-400 group-hover:text-white transition-colors">star</span>
             </div>
           </div>
           <div>
             <p className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">
               {loading ? '...' : expoStationsCount}
             </p>
-            <p className="text-[9px] text-zinc-400 font-medium mt-1 truncate">Expo stations ready</p>
+            <p className="text-[9px] text-zinc-400 group-hover:text-zinc-300 font-medium mt-1 truncate">Expo stations ready</p>
           </div>
         </div>
 
         {/* Card 4: System Operational Status */}
-        <div className="bg-[#222222] text-white p-3.5 rounded-lg border-t-4 border-emerald-500 shadow-sm flex flex-col justify-between h-32 group hover:border-white transition-all duration-200 min-w-0">
+        <div className="bg-[#222222] hover:bg-[#2c2b25] text-white p-3.5 rounded-lg border-t-4 border-emerald-500 hover:border-emerald-300 shadow-sm flex flex-col justify-between h-32 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer min-w-0">
           <div className="flex items-center justify-between w-full min-w-0 gap-1">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 truncate">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-zinc-400 group-hover:text-white transition-colors truncate">
               System Status
             </span>
-            <div className="w-7 h-7 rounded bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-              <span className="material-symbols-outlined text-base">check_circle</span>
+            <div className="w-7 h-7 rounded bg-emerald-500/20 group-hover:bg-emerald-500 flex items-center justify-center transition-all shrink-0">
+              <span className="material-symbols-outlined text-base text-emerald-400 group-hover:text-white transition-colors">check_circle</span>
             </div>
           </div>
           <div>
