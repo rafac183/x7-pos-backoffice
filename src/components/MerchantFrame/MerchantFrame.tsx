@@ -78,6 +78,9 @@ import { MovementsView } from './views/products-inventory/stocks/movements/Movem
 import { FloorPlansView } from './views/dining-system/FloorPlansView';
 import { FloorZonesView } from './views/dining-system/FloorZonesView';
 import { DiningTablesView } from './views/dining-system/DiningTablesView';
+import { CollaboratorsView } from './views/hr/CollaboratorsView';
+import { TimeEntriesView } from './views/hr/TimeEntriesView';
+import { ContractsView } from './views/hr/ContractsView';
 import { TableAssignmentsView } from './views/dining-system/TableAssignmentsView';
 import { RawMaterialsView } from './views/products-inventory/raw-materials/RawMaterialsView';
 import { RawMaterialCategoriesView } from './views/products-inventory/category/RawMaterialCategoriesView';
@@ -702,6 +705,33 @@ export const MerchantFrame: React.FC = () => {
       // con el que la vista llama a /api/floor-plan). Si no hay sesión, la vista aplica su default.
       return (
         <FloorPlansView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'collaborators-contracts') {
+      return (
+        <ContractsView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'collaborators-time-entries') {
+      return (
+        <TimeEntriesView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'collaborators') {
+      return (
+        <CollaboratorsView
           onNavigate={(view) => setActiveTab(view)}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
