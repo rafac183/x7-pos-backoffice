@@ -59,7 +59,7 @@ import { CashDrawerHistoryView } from './views/restaurant-operations/CashDrawerH
 import { CollaboratorPersonalScheduleView } from './views/restaurant-operations/CollaboratorPersonalScheduleView';
 import { ShiftAssignmentView } from './views/restaurant-operations/ShiftAssignmentView';
 import { TimeClockKioskView } from './views/restaurant-operations/TimeClockKioskView';
-import { TimeEntriesView } from './views/restaurant-operations/TimeEntriesView';
+import { TimeEntriesView as RestaurantTimeEntriesView } from './views/restaurant-operations/TimeEntriesView';
 import { TipsLedgerView } from './views/restaurant-operations/TipsLedgerView';
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
 import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
@@ -86,7 +86,7 @@ import { FloorPlansView } from './views/dining-system/FloorPlansView';
 import { FloorZonesView } from './views/dining-system/FloorZonesView';
 import { DiningTablesView } from './views/dining-system/DiningTablesView';
 import { CollaboratorsView } from './views/hr/CollaboratorsView';
-import { TimeEntriesView } from './views/hr/TimeEntriesView';
+import { TimeEntriesView as HrTimeEntriesView } from './views/hr/TimeEntriesView';
 import { ContractsView } from './views/hr/ContractsView';
 import { TableAssignmentsView } from './views/dining-system/TableAssignmentsView';
 import { RawMaterialsView } from './views/products-inventory/raw-materials/RawMaterialsView';
@@ -699,8 +699,12 @@ export const MerchantFrame: React.FC = () => {
       return <ShiftAssignmentView initialViewMode="swaps" onNavigate={handleStaffNavigate} />;
     }
 
-    if (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries' || activeTab === 'attendance-ledger' || activeTab === 'ledger') {
-      return <TimeEntriesView onNavigate={handleStaffNavigate} />;
+    if (
+      (activeCategory === 'restaurant-operations' && (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries')) ||
+      activeTab === 'attendance-ledger' ||
+      activeTab === 'ledger'
+    ) {
+      return <RestaurantTimeEntriesView onNavigate={handleStaffNavigate} />;
     }
 
     if (activeTab === 'tips-ledger' || activeTab === 'tips' || activeTab === '/store-operations/tips-ledger') {
@@ -876,9 +880,9 @@ export const MerchantFrame: React.FC = () => {
       );
     }
 
-    if (activeTab === 'collaborators-time-entries') {
+    if (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries') {
       return (
-        <TimeEntriesView
+        <HrTimeEntriesView
           onNavigate={(view) => setActiveTab(view)}
           merchantId={getCurrentMerchantId() ?? undefined}
         />
