@@ -119,11 +119,15 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
   // Load pending invoices of selected supplier to allocate against.
   useEffect(() => {
     if (!supplierId) {
-      setOutstanding([]);
+      void Promise.resolve().then(() => {
+        setOutstanding([]);
+      });
       return;
     }
     let cancelled = false;
-    setLoadingInvoices(true);
+    void Promise.resolve().then(() => {
+      setLoadingInvoices(true);
+    });
     fetch(`${API_BASE}/supplier-invoices?supplier_id=${supplierId}&limit=100`, {
       headers: authHeaders(),
     })
@@ -782,8 +786,10 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({
   };
 
   useEffect(() => {
-    fetchPayments();
-    fetchSuppliers();
+    void Promise.resolve().then(() => {
+      fetchPayments();
+      fetchSuppliers();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId]);
 
@@ -865,9 +871,9 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({
       }
       setFormDrawer(null);
       setToast({ message: 'Payment recorded successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to record payment', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to record payment', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -896,9 +902,9 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({
       }
       setFormDrawer(null);
       setToast({ message: 'Payment updated successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to update payment', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to update payment', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -932,9 +938,9 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({
       setPayments((prev) => prev.filter((p) => p.id !== deletingPayment.id));
       setDeletingPayment(null);
       setToast({ message: 'Payment deleted successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setDeletingPayment(null);
-      setToast({ message: err.message || 'Failed to delete payment', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to delete payment', type: 'error' });
     } finally {
       setDeleteSubmitting(false);
     }

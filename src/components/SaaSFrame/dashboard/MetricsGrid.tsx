@@ -11,23 +11,46 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMetrics = async () => {
+  const [prevTrigger, setPrevTrigger] = useState(refreshTrigger);
+  const [retryCount, setRetryCount] = useState(0);
+
+  if (refreshTrigger !== prevTrigger) {
+    setPrevTrigger(refreshTrigger);
     setLoading(true);
     setError(null);
-    try {
-      const data = await saasService.getMetrics();
-      setMetrics(data);
-    } catch (err) {
-      setError('Error loading metrics');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  }
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    setRetryCount(c => c + 1);
   };
 
   useEffect(() => {
-    fetchMetrics();
-  }, [refreshTrigger]);
+    let ignore = false;
+    saasService.getMetrics()
+      .then(data => {
+        if (!ignore) {
+          setMetrics(data);
+          setError(null);
+        }
+      })
+      .catch(err => {
+        if (!ignore) {
+          setError('Error loading metrics');
+          console.error(err);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [refreshTrigger, retryCount]);
 
   const renderTrendSVG = (trend: number[]) => {
     if (!trend || trend.length < 2) return null;
@@ -105,7 +128,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ refreshTrigger }) => {
               </p>
             </div>
             <button
-              onClick={fetchMetrics}
+              onClick={handleRetry}
               className="mt-auto self-start text-[11px] font-bold text-[#d51f2c] uppercase hover:underline flex items-center gap-1"
             >
               <span className="material-symbols-outlined text-xs">refresh</span> Retry

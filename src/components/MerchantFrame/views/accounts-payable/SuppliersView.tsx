@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
 import { QuickLaunchPanel } from '../../shared/QuickLaunchPanel';
 import { EmergencySupportModal } from '../../modals/QuickActionModals';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, getDensityPadding, type TableDensity } from '../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../shared/tableOptionsHelpers';
 
 interface PurchaseOrder {
   id: number;
@@ -24,7 +25,7 @@ interface Supplier {
   updated_at: string;
   isActive?: boolean;
   purchaseOrders?: PurchaseOrder[];
-  products?: any[];
+  products?: unknown[];
 }
 
 interface SuppliersViewProps {
@@ -99,7 +100,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -115,7 +116,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -125,17 +126,19 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
 
       const json = await res.json();
       setSuppliers(json.data || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching suppliers:', err);
       setError('Failed to load suppliers. Please check if the backend is running.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchSuppliers();
-  }, [activeCompanyId]);
+    void Promise.resolve().then(() => {
+      fetchSuppliers();
+    });
+  }, [fetchSuppliers, activeCompanyId]);
 
   // Fetch a single supplier by ID to retrieve relations (like purchaseOrders) and fresh metadata
   const fetchSupplierDetail = async (id: number) => {
@@ -247,10 +250,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
       );
       setIsConfirmModalOpen(false);
       setConfirmTargetSupplier(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setToggleError(err.message || 'Error updating supplier status');
-      showToast(err.message || 'Error updating supplier status', 'error');
+      const msg = err instanceof Error ? err.message : 'Error updating supplier status';
+      setToggleError(msg);
+      showToast(msg, 'error');
     } finally {
       setIsToggling(false);
     }
@@ -305,9 +309,9 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onNavigate, compan
       );
       setIsFormModalOpen(false);
       fetchSuppliers(); // Silent background re-hydration
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast(err.message || 'Failed to save supplier', 'error');
+      showToast(err instanceof Error ? err.message : 'Failed to save supplier', 'error');
     } finally {
       setIsSubmitting(false);
     }

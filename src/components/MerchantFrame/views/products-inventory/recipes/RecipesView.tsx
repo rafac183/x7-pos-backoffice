@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -143,19 +144,12 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const [drawerError, setDrawerError] = useState<string | null>(null);
 
 
-  useEffect(() => {
-    if (topRef.current) {
-      topRef.current.scrollIntoView({ behavior: 'instant' });
-    }
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    fetchData();
-  }, []);
-
-
   // 1. Load Recipes, Commercial Products, and Raw Materials from backend
-  const fetchData = async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -180,7 +174,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
       if (recipesRes.status === 401 || productsRes.status === 401 || suppliesRes.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -196,17 +190,24 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       setSupplies(Array.isArray(suppliesList) ? suppliesList : []);
       setRecipes(Array.isArray(recipesList) ? recipesList : []);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching recipes workspace data:', err);
-      setError(err.message || 'Failed to load recipes data from server.');
+      const message = err instanceof Error ? err.message : 'Failed to load recipes data from server.';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    void Promise.resolve().then(() => {
+      fetchData();
+    });
+  }, [fetchData]);
 
   // Open Drawer to Create New Recipe
   const handleOpenAdd = () => {
@@ -280,7 +281,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   }, 0);
 
   // Change Ingredient Line Value with Duplicate Guard
-  const handleFormLineChange = (index: number, key: 'raw_material_id' | 'quantity', val: any) => {
+  const handleFormLineChange = (index: number, key: 'raw_material_id' | 'quantity', val: string | number) => {
     setFormDuplicateWarning(null);
     if (key === 'raw_material_id' && val) {
       const isAlreadyAdded = formLines.some(
@@ -322,8 +323,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       }
 
       fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Error deleting recipe.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error deleting recipe.';
+      alert(message);
       setIsLoading(false);
     }
   };
@@ -377,7 +379,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         productId: Number(formProductId),
         lines: validLines,
       };
@@ -431,8 +433,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
       setIsDrawerOpen(false);
       fetchData();
-    } catch (err: any) {
-      setDrawerError(err.message || 'Error saving recipe.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error saving recipe.';
+      setDrawerError(message);
     } finally {
       setIsLoading(false);
     }
@@ -552,7 +555,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}
               className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
             >
               <option value="ALL">All Status</option>
@@ -720,10 +723,13 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                           const calculatedLinesCost = (rec.lines || []).reduce((sum, l) => {
                             const mat = l.rawMaterial || supplies.find((s) => s.id === l.rawMaterialId || s.id === l.supplyProductId);
                             const qty = Number(l.quantityPerSoldUnit || l.quantity || 0);
-                            const unitCost = Number(mat?.cost_per_unit || 0);
-                            return sum + (qty * unitCost);
+                            const unitCost = Number(mat?.average_cost ?? mat?.cost_per_unit ?? 0);
+                            const convFactor = Number(mat?.conversion_factor ?? 1) || 1;
+                            return sum + (qty * (unitCost / convFactor));
                           }, 0);
-                          const totalCost = calculatedLinesCost > 0 ? calculatedLinesCost : Number(rec.theoreticalCostCached || 0);
+                          const totalCost = Number(rec.theoreticalCostCached) > 0 
+                            ? Number(rec.theoreticalCostCached) 
+                            : calculatedLinesCost;
                           const portionCost = yieldQty > 0 ? totalCost / yieldQty : totalCost;
                           const ingredientCount = (rec.lines || []).length;
                           const recIsActive = rec.isActive !== false;
@@ -935,7 +941,8 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                             <tr>
                               <th className="p-3">Ingredient</th>
                               <th className="p-3 text-right">Required Quantity</th>
-                              <th className="p-3 text-right">Unit Cost</th>
+                              <th className="p-3 text-right">Unit Cost (Base)</th>
+                              <th className="p-3 text-right">Line Subtotal</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#e8e2d8]">
@@ -946,17 +953,24 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                                   (s) => s.id === l.rawMaterialId || s.id === l.supplyProductId
                                 );
                               const qty = Number(l.quantityPerSoldUnit || l.quantity || 0);
-                              const cost = Number(mat?.cost_per_unit || 0);
+                              const baseCost = Number(mat?.cost_per_unit || mat?.average_cost || 0);
+                              const convFactor = Number(mat?.conversion_factor ?? 1) || 1;
+                              const lineCost = qty * (baseCost / convFactor);
+                              const pUnit = mat?.purchase_unit || mat?.unit || 'unit';
+                              const cUnit = l.unitOfMeasure || mat?.consumption_unit || mat?.unit || 'GRAM';
                               return (
                                 <tr key={i}>
                                   <td className="p-3 font-bold text-[#1d1c17]">
                                     {mat?.name || 'Unknown Supply'}
                                   </td>
                                   <td className="p-3 text-right font-mono font-bold">
-                                    {qty} {l.unitOfMeasure || mat?.unit || 'GRAM'}
+                                    {qty} {cUnit}
                                   </td>
-                                  <td className="p-3 text-right font-mono text-[#ae001a]">
-                                    ${cost.toFixed(4)}
+                                  <td className="p-3 text-right font-mono text-[#5f5e5e] text-[11px]">
+                                    ${baseCost.toFixed(4)} <span className="text-[10px]">/{pUnit}</span>
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-bold text-[#ae001a]">
+                                    ${lineCost.toFixed(4)}
                                   </td>
                                 </tr>
                               );
@@ -1158,13 +1172,20 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                                       (other, oIdx) => oIdx !== idx && String(other.raw_material_id) === String(s.id)
                                     );
                                     const sCost = Number(s.average_cost ?? s.cost_per_unit ?? 0);
+                                    const sConv = Number(s.conversion_factor ?? 1) || 1;
+                                    const sConsCost = sCost / sConv;
+                                    const pUnit = s.purchase_unit || s.unit || 'unit';
+                                    const cUnit = s.consumption_unit || s.unit || 'unit';
+                                    const costLabel = sConv !== 1 && pUnit !== cUnit
+                                      ? `$${sCost.toFixed(4)}/${pUnit} ($${sConsCost.toFixed(4)}/${cUnit})`
+                                      : `$${sCost.toFixed(4)}/${cUnit}`;
                                     return (
                                       <option
                                         key={s.id}
                                         value={s.id}
                                         disabled={isSelectedInOtherRow}
                                       >
-                                        {s.name} ({s.code}) - Avg Cost: ${sCost.toFixed(4)} / {s.consumption_unit || s.unit} {isSelectedInOtherRow ? '(Added)' : ''}
+                                        {s.name} ({s.code}) - Cost: {costLabel} {isSelectedInOtherRow ? '(Added)' : ''}
                                       </option>
                                     );
                                   })}

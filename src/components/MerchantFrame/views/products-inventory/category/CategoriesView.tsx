@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Category {
@@ -27,7 +27,6 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
   // Filters state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('All Status');
-  const [typeFilter, setTypeFilter] = useState<string>('All Types');
 
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
@@ -67,7 +66,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -86,7 +85,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
       if (categoriesRes.status === 401 || productsRes.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -101,13 +100,13 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
       const productsData = productsJson.data || [];
 
       // Map to local interface format
-      const mapped: Category[] = categoriesData.map((cat: any) => {
+      const mapped: Category[] = categoriesData.map((cat: { id: number | string; name: string; parents?: { id: number | string }[]; isActive?: boolean }) => {
         const hasParent = cat.parents && cat.parents.length > 0;
         const parentId = hasParent ? String(cat.parents[0].id) : 'NULL';
         const type = hasParent ? 'Sub-Category' : 'Root Category';
         
         // Contar productos vinculados
-        const linkedProducts = productsData.filter((p: any) => p.category?.id === cat.id).length;
+        const linkedProducts = productsData.filter((p: { category?: { id: number | string } }) => p.category?.id === cat.id).length;
 
         return {
           id: String(cat.id),
@@ -120,17 +119,19 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
       });
 
       setCategories(mapped);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching categories:', err);
       setError('Failed to load categories. Please check if the backend is running.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchCategories();
+    });
+  }, [fetchCategories]);
 
   const handleExportCSV = () => {
     if (filteredCategories.length === 0) return;
@@ -226,9 +227,10 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
       );
       setIsConfirmModalOpen(false);
       setConfirmTargetCategory(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setToggleError(err.message || 'Error updating category status');
+      const msg = err instanceof Error ? err.message : 'Error updating category status';
+      setToggleError(msg);
     } finally {
       setIsToggling(false);
     }
@@ -279,9 +281,10 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
 
       setIsModalOpen(false);
       fetchCategories();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Error saving category');
+      const msg = err instanceof Error ? err.message : 'Error saving category';
+      alert(msg);
     }
   };
 

@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../StockQuickLinks';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../../shared/tableOptionsHelpers';
 
 interface StockItem {
   id: number;
@@ -84,7 +85,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
   }, []);
 
   // API data loading (Silent background sync)
-  const fetchLocations = async (silent = false) => {
+  const fetchLocations = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
@@ -109,7 +110,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -123,17 +124,19 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
         dataList = dataList.map((l, idx) => (idx === 0 ? { ...l, isMainStorage: true } : l));
       }
       setLocations(dataList);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       if (!silent) setError('Failed to load inventory locations. Please check if the backend is running.');
     } finally {
       if (!silent) setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchLocations();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchLocations();
+    });
+  }, [fetchLocations]);
 
   // Handle isMainStorage toggle: must always have at least one main storage location
   const handleToggleMainStorage = (checked: boolean) => {
@@ -254,9 +257,10 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
       );
       setIsConfirmModalOpen(false);
       setConfirmTargetLocation(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setToggleError(err.message || 'Error updating location status');
+      const msg = err instanceof Error ? err.message : 'Error updating location status';
+      setToggleError(msg);
     } finally {
       setIsToggling(false);
     }
@@ -289,7 +293,6 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      const merchantId = sessionStorage.getItem('x7:branch-context') || '1';
       let res;
 
       // If formIsMainStorage is true, uncheck any other main storage for this merchant (Rule 2)
@@ -337,9 +340,10 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
       }
       setIsFormDrawerOpen(false);
       fetchLocations(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setDeactivationError(err.message || 'Error saving location');
+      const msg = err instanceof Error ? err.message : 'Error saving location';
+      setDeactivationError(msg);
     }
   };
 
@@ -644,7 +648,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={(e) => handleToggleLocationActive(e, loc)}
+                                    onClick={(e) => handleOpenConfirmToggle(e, loc)}
                                     className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
                                     title={loc.isActive !== false ? 'Deactivate Location' : 'Activate Location'}
                                   >

@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
+import { getAccessToken } from '../../../../../lib/auth-storage';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 import { AppModal } from '../../../shared/AppModal';
 import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
-import { TableOptionsMenu, NoColumnsEmptyState, TableEmptyState, TablePaginationFooter, getDensityPadding } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, NoColumnsEmptyState, TableEmptyState, TablePaginationFooter } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { NavHubBar } from '../../../../shared/NavHubBar';
 
 export type KitchenDisplayDeviceStatus = 'active' | 'deleted';
@@ -80,9 +81,30 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Reset page when filters or page size change
-  useEffect(() => {
+  const [prevFilterState, setPrevFilterState] = useState({
+    searchQuery,
+    stationFilter,
+    connectivityFilter,
+    statusFilter,
+    pageSize,
+  });
+
+  if (
+    searchQuery !== prevFilterState.searchQuery ||
+    stationFilter !== prevFilterState.stationFilter ||
+    connectivityFilter !== prevFilterState.connectivityFilter ||
+    statusFilter !== prevFilterState.statusFilter ||
+    pageSize !== prevFilterState.pageSize
+  ) {
+    setPrevFilterState({
+      searchQuery,
+      stationFilter,
+      connectivityFilter,
+      statusFilter,
+      pageSize,
+    });
     setCurrentPage(1);
-  }, [searchQuery, stationFilter, connectivityFilter, statusFilter, pageSize]);
+  }
 
   // Edit and Create Drawer
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -124,7 +146,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   }, []);
 
   // Cargar lista de estaciones de cocina para los selectores y calcular conteos
-  const fetchStationsList = async () => {
+  const fetchStationsList = useCallback(async () => {
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -140,7 +162,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         const json = await resStations.json();
         const rawList = Array.isArray(json) ? json : json.data || [];
         setStations(
-          rawList.map((s: any) => ({
+          rawList.map((s: { id: number; name: string }) => ({
             id: s.id,
             name: s.name,
           }))
@@ -154,7 +176,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         const rawDevs = Array.isArray(devJson) ? devJson : devJson.data || [];
         const countMap: Record<number, number> = {};
         let unassigned = 0;
-        rawDevs.forEach((d: any) => {
+        rawDevs.forEach((d: { station_id?: number; stationId?: number; station?: { id: number } }) => {
           const sId = d.station_id ?? d.stationId ?? d.station?.id;
           if (sId) {
             countMap[sId] = (countMap[sId] || 0) + 1;
@@ -170,10 +192,10 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       console.error('Error fetching kitchen stations from database:', err);
       setStations([]);
     }
-  };
+  }, [API_BASE]);
 
   // Fetch de Dispositivos KDS desde PostgreSQL
-  const fetchDevices = async (silent = false) => {
+  const fetchDevices = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
@@ -201,7 +223,28 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       if (res.ok) {
         const json = await res.json();
         const rawList = Array.isArray(json) ? json : json.data || [];
-        const dataList = rawList.map((dev: any) => ({
+        const dataList = rawList.map((dev: {
+          id: number;
+          merchant_id?: number;
+          merchantId?: number;
+          station_id?: number;
+          stationId?: number;
+          station?: { id: number; name: string };
+          name: string;
+          device_identifier?: string;
+          deviceIdentifier?: string;
+          ip_address?: string;
+          ipAddress?: string;
+          is_online?: boolean;
+          isOnline?: boolean;
+          last_sync?: string;
+          lastSync?: string;
+          status?: string;
+          created_at?: string;
+          createdAt?: string;
+          updated_at?: string;
+          updatedAt?: string;
+        }) => ({
           id: dev.id,
           merchant_id: dev.merchant_id ?? dev.merchantId ?? 1,
           station_id: dev.station_id ?? dev.stationId ?? dev.station?.id ?? null,
@@ -226,12 +269,14 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, connectivityFilter, stationFilter, API_BASE]);
 
   useEffect(() => {
-    fetchStationsList();
-    fetchDevices();
-  }, [statusFilter, connectivityFilter, stationFilter]);
+    void Promise.resolve().then(() => {
+      fetchStationsList();
+      fetchDevices(true);
+    });
+  }, [fetchStationsList, fetchDevices]);
 
 
   // In-memory alphanumeric filtering
@@ -267,18 +312,18 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   const unassignedCount = activeDevices.filter((d) => !d.station_id).length;
 
   const FIVE_MINS_MS = 5 * 60 * 1000;
+  const [currentNow] = useState(() => Date.now());
   const outOfSyncCount = activeDevices.filter((d) => {
     if (!d.last_sync) return true;
     const syncTime = new Date(d.last_sync).getTime();
-    return Date.now() - syncTime > FIVE_MINS_MS;
+    return currentNow - syncTime > FIVE_MINS_MS;
   }).length;
 
   // Calculador de tiempo relativo ("2 mins ago", "1 hr ago", etc.)
   const formatTimeAgo = (isoString: string | null) => {
     if (!isoString) return 'Never Synced';
     const date = new Date(isoString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    const diffMs = currentNow - date.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
 
     if (diffMins < 1) return 'Just now';
@@ -361,7 +406,6 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
     setIsSubmitting(true);
     setFormError(null);
 
-    const stationObj = formStationId ? stations.find((s) => s.id === Number(formStationId)) : null;
     const isDeletedStatus = formStatus === 'deleted';
 
     try {
@@ -394,8 +438,9 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         const msg = Array.isArray(errJson?.message) ? errJson.message[0] : (errJson?.message || 'Failed to save device in database');
         setFormError(msg);
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Network error saving device');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error saving device';
+      setFormError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -435,7 +480,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
           type: 'warning',
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error resyncing device:', err);
       setToastMessage({
         text: `Network error resynchronizing "${device.name}".`,

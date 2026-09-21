@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 
 interface Product {
   id: number;
@@ -32,7 +32,6 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
 
   // Filtros locales
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [productFilter, setProductFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All Status');
 
   // Table options state
@@ -77,7 +76,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -96,7 +95,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
 
       if (variantsRes.status === 401 || productsRes.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -111,7 +110,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
       const productsData = productsJson.data || [];
 
       // Map variants
-      const mappedVariants = variantsData.map((v: any) => ({
+      const mappedVariants = variantsData.map((v: { id: number; name: string; sku?: string; price: number | string; isActive?: boolean; product?: { id: number; name: string } | null }) => ({
         id: v.id,
         name: v.name,
         sku: v.sku || 'N/A',
@@ -121,24 +120,26 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
       }));
 
       // Mapear productos
-      const mappedProducts = productsData.map((p: any) => ({
+      const mappedProducts = productsData.map((p: { id: number; name: string }) => ({
         id: p.id,
         name: p.name
       }));
 
       setVariants(mappedVariants);
       setProducts(mappedProducts);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching variants data:', err);
       setError('Failed to load variants. Please check if the backend is running.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchAllData();
+    });
+  }, [fetchAllData]);
 
   const handleExportCSV = () => {
     if (filteredVariants.length === 0) return;
@@ -174,7 +175,9 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
   });
 
   useEffect(() => {
-    setCurrentPage(1);
+    void Promise.resolve().then(() => {
+      setCurrentPage(1);
+    });
   }, [searchQuery, statusFilter, pageSize]);
 
   const densityPadding = getDensityPadding(rowDensity);
@@ -260,9 +263,9 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
       );
       setIsConfirmModalOpen(false);
       setConfirmTargetVariant(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setToggleError(err.message || 'Error updating variant status');
+      setToggleError(err instanceof Error ? err.message : 'Error updating variant status');
     } finally {
       setIsToggling(false);
     }
@@ -290,7 +293,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const bodyData: any = {
+      const bodyData: { name: string; sku?: string; price: number; isActive: boolean; productId?: number } = {
         name: formName,
         sku: formSku.trim() || undefined,
         price: priceNum,
@@ -298,7 +301,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
       };
 
       if (modalMode === 'add') {
-        bodyData.productId = parseInt(formProduct);
+        bodyData.productId = parseInt(formProduct, 10);
         const res = await fetch(`${API_BASE}/variants`, {
           method: 'POST',
           headers,
@@ -322,9 +325,9 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
 
       setIsModalOpen(false);
       fetchAllData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Error saving variant');
+      alert(err instanceof Error ? err.message : 'Error saving variant');
     }
   };
 

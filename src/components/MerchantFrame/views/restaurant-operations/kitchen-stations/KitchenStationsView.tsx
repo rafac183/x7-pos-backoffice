@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 import { AppModal } from '../../../shared/AppModal';
 import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
-import { TableOptionsMenu, NoColumnsEmptyState, TableEmptyState, TablePaginationFooter, getDensityPadding } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, NoColumnsEmptyState, TableEmptyState, TablePaginationFooter } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { NavHubBar } from '../../../../shared/NavHubBar';
 
 export type KitchenStationType = 'HOT' | 'COLD' | 'BAR' | 'DESSERT' | 'PREP' | 'PACKING' | 'EXPO';
@@ -68,9 +69,30 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
   const [pageSize, setPageSize] = useState<number>(5);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  useEffect(() => {
+  const [prevFilterState, setPrevFilterState] = useState({
+    searchQuery,
+    stationTypeFilter,
+    displayModeFilter,
+    statusFilter,
+    pageSize,
+  });
+
+  if (
+    searchQuery !== prevFilterState.searchQuery ||
+    stationTypeFilter !== prevFilterState.stationTypeFilter ||
+    displayModeFilter !== prevFilterState.displayModeFilter ||
+    statusFilter !== prevFilterState.statusFilter ||
+    pageSize !== prevFilterState.pageSize
+  ) {
+    setPrevFilterState({
+      searchQuery,
+      stationTypeFilter,
+      displayModeFilter,
+      statusFilter,
+      pageSize,
+    });
     setCurrentPage(1);
-  }, [searchQuery, stationTypeFilter, displayModeFilter, statusFilter, pageSize]);
+  }
 
   // Edit and Create Drawer / Modal States
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -102,7 +124,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
     }
   }, []);
 
-  const fetchStations = async (silent = false) => {
+  const fetchStations = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
@@ -124,14 +146,14 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
       if (res.ok) {
         const json = await res.json();
-        const rawList = Array.isArray(json) ? json : json.data || [];
-        const dataList = rawList.map((st: any) => ({
+        const rawList: Record<string, unknown>[] = Array.isArray(json) ? json : json.data || [];
+        const dataList = rawList.map((st) => ({
           ...st,
           is_active: st.isActive ?? st.is_active ?? true,
           isActive: st.isActive ?? st.is_active ?? true,
@@ -145,6 +167,10 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
           printerName: st.printerName ?? st.printer_name ?? null,
           created_at: st.createdAt ?? st.created_at ?? new Date().toISOString(),
           createdAt: st.createdAt ?? st.created_at ?? new Date().toISOString(),
+          active_routing: st.activeRouting ?? st.active_routing ?? true,
+          activeRouting: st.activeRouting ?? st.active_routing ?? true,
+          status: st.status ?? 'active',
+          name: st.name ?? '',
         }));
         setStations(dataList);
       } else {
@@ -157,11 +183,13 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, stationTypeFilter, displayModeFilter, API_BASE]);
 
   useEffect(() => {
-    fetchStations();
-  }, [stationTypeFilter, displayModeFilter, statusFilter]);
+    void Promise.resolve().then(() => {
+      fetchStations(true);
+    });
+  }, [fetchStations]);
 
   // Client-side alphanumeric filtering for ultra-fast response
   const filteredStations = stations.filter((station) => {
@@ -308,7 +336,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
           : 'Error saving kitchen station.';
         setFormError(msg);
       }
-    } catch (err) {
+    } catch {
       setFormError('Network error connecting to server.');
     } finally {
       setIsSubmitting(false);
@@ -336,7 +364,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       } else {
         setStations((prev) => prev.filter((s) => s.id !== stationToDelete.id));
       }
-    } catch (err) {
+    } catch {
       setStations((prev) => prev.filter((s) => s.id !== stationToDelete.id));
     } finally {
       setIsDeleting(false);

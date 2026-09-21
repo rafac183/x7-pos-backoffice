@@ -20,7 +20,6 @@ interface GlobalHeaderProps {
 
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   activeTab,
-  activeCategory,
   refreshTrigger,
   navCategories,
   notifications,
@@ -43,11 +42,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   useEffect(() => {
     if (isSidebarCollapsed) {
-      setIsMenuSearchOpen(false);
-      setMenuSearchQuery('');
-      onMenuSearchChange('');
+      void Promise.resolve().then(() => {
+        setIsMenuSearchOpen(false);
+        setMenuSearchQuery('');
+        onMenuSearchChange?.('');
+      });
     }
-  }, [isSidebarCollapsed]);
+  }, [isSidebarCollapsed, onMenuSearchChange]);
 
   // Standardized list of all backoffice features for quick search
   const ALL_BACKOFFICE_FEATURES: Array<{ id: string; name: string; categoryId: string; categoryName: string }> = [
@@ -109,8 +110,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       }
     };
 
-    fetchHeaderData();
-  }, [refreshTrigger]);
+    void Promise.resolve().then(() => {
+      void fetchHeaderData();
+    });
+  }, [refreshTrigger, API_BASE]);
 
   // Resolve breadcrumbs and titles reactively and dynamically from navCategories
   let parentAppName = '';

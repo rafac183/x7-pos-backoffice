@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Category {
@@ -98,7 +98,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -117,7 +117,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
 
       if (productsRes.status === 401 || categoriesRes.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -132,7 +132,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
       const categoriesData = categoriesJson.data || [];
 
       // Mapear y asegurar que los campos existan y tengan el tipo correcto
-      const mappedProducts = productsData.map((p: any) => ({
+      const mappedProducts = productsData.map((p: {
+        id: number;
+        name: string;
+        sku?: string;
+        basePrice: number | string;
+        isActive?: boolean;
+        category?: { id: number; name: string } | null;
+        variants?: Variant[];
+        modifiers?: Modifier[];
+      }) => ({
         id: p.id,
         name: p.name,
         sku: p.sku || 'N/A',
@@ -145,17 +154,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
 
       setProducts(mappedProducts);
       setCategories(categoriesData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching data:', err);
       setError('Failed to load products. Please check if the backend is running.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchAllData();
+    });
+  }, [fetchAllData]);
 
   // Client-side reactive product filtering
   const filteredProducts = products.filter((p) => {
@@ -244,9 +255,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
       );
       setIsConfirmModalOpen(false);
       setConfirmTargetProduct(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setToggleError(err.message || 'Error updating product status');
+      const msg = err instanceof Error ? err.message : 'Error updating product status';
+      setToggleError(msg);
     } finally {
       setIsToggling(false);
     }
@@ -309,9 +321,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
 
       setIsModalOpen(false);
       fetchAllData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Error saving product');
+      const msg = err instanceof Error ? err.message : 'Error saving product';
+      alert(msg);
     }
   };
 

@@ -21,9 +21,11 @@ export const SaaSFrame: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [searchText, setSearchText] = useState<string>('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
-  const [isSearching, setIsSearching] = useState<boolean>(false);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [apiFailedToggle, setApiFailedToggle] = useState<boolean>(getSimulateApiFailure());
+
+  // Derived indicator: user has typed but debounce period (300ms) has not settled yet
+  const isSearching = Boolean(searchText && searchText !== debouncedSearchQuery);
 
   // Add classes to override limiting styles from original Vite template
   useEffect(() => {
@@ -39,24 +41,8 @@ export const SaaSFrame: React.FC = () => {
 
   // 300ms debounce for global search (AC 1.3)
   useEffect(() => {
-    if (searchText) {
-      setIsSearching(true);
-    }
     const handler = setTimeout(() => {
       setDebouncedSearchQuery(searchText);
-      setIsSearching(false);
-    }, 300);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [searchText]);
-
-  // Handler de debounce real de 300ms
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchText);
-      setIsSearching(false);
     }, 300);
 
     return () => {

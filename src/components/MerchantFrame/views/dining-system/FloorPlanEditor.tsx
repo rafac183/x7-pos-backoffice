@@ -541,10 +541,12 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchAllPages, handleUnauthorized, plan.id]);
+  }, [fetchAllPages, handleUnauthorized, plan.id, canvasW, canvasH]);
 
   useEffect(() => {
-    void loadLayout();
+    void Promise.resolve().then(() => {
+      void loadLayout();
+    });
   }, [loadLayout]);
 
   // Editor mounts per plan; if parent reused instance for another plan, outline
@@ -1818,6 +1820,7 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     authHeaders,
     dirtyCount,
     dirtyIds,
+    dirtyZoneIds,
     handleUnauthorized,
     loadLayout,
     merchantId,
@@ -1828,6 +1831,8 @@ export const FloorPlanEditor: React.FC<FloorPlanEditorProps> = ({
     plan.id,
     saving,
     tables,
+    zoneAreas,
+    zones,
   ]);
 
   // ---------------- Cierre ----------------

@@ -23,6 +23,7 @@ export interface KitchenTicket {
   backendOrderId?: number;
   table: string;
   timeElapsed: number; // minutes
+  createdAtMs?: number;
   server: string;
   stationName?: string;
   priority: 'high' | 'medium' | 'normal';
@@ -89,7 +90,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const triggerAlert = (message: string, type: 'fire' | 'pacing' = 'fire') => {
+  const triggerAlert = useCallback((message: string, type: 'fire' | 'pacing' = 'fire') => {
     if (audioChimeEnabled) {
       playKitchenFireChime();
     }
@@ -98,7 +99,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     toastTimerRef.current = setTimeout(() => {
       setActiveAlertToast(null);
     }, 5000);
-  };
+  }, [audioChimeEnabled]);
 
   // 1-second countdown ticker for Held Items Pacing Timers
   useEffect(() => {
@@ -106,7 +107,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
       setTickets((prevTickets) => {
         let anyAutoFired = false;
         let firedItemName = '';
-        let firedTicketTable = '';
+        const firedItems: Array<{ id: string | number; name: string; table: string }> = [];
 
         const updated = prevTickets.map((ticket) => {
           let ticketUpdated = false;
@@ -117,11 +118,12 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
                 // Auto-fire triggered!
                 anyAutoFired = true;
                 firedItemName = item.name;
-                firedTicketTable = ticket.table;
+                firedItems.push({ id: item.id, name: item.name, table: ticket.table });
                 ticketUpdated = true;
+
                 return {
                   ...item,
-                  preparationStatus: 'PENDING' as PreparationStatus,
+                  preparationStatus: 'IN_PREPARATION' as PreparationStatus,
                   holdRemainingSeconds: 0,
                   firedAt: new Date().toISOString(),
                 };
@@ -148,8 +150,22 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
           };
         });
 
-        if (anyAutoFired) {
-          triggerAlert(`⏱️ AUTO-PACING ALERT: ${firedItemName} on ${firedTicketTable} auto-fired to cook line!`, 'pacing');
+        if (anyAutoFired && firedItems.length > 0) {
+          setTimeout(() => {
+            const token = getAccessToken();
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            };
+            firedItems.forEach((f) => {
+              fetch(`${API_BASE}/kitchen-order-items/${f.id}/fire`, {
+                method: 'POST',
+                headers,
+              }).catch((e) => console.warn('Auto-fire backend sync failed:', e));
+              triggerAlert(`⏱️ AUTO-PACING ALERT: ${f.name} on ${f.table} auto-fired to cook line!`, 'pacing');
+            });
+          }, 0);
+
           // Re-sort: Move auto-fired ticket to the top of the queue
           return [...updated].sort((a, b) => (b.isPulsing ? 1 : 0) - (a.isPulsing ? 1 : 0));
         }
@@ -159,7 +175,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoFireEnabled, audioChimeEnabled]);
+  }, [autoFireEnabled, triggerAlert]);
 
   // Cleanup pulsing animations after 4.5 seconds
   useEffect(() => {
@@ -176,7 +192,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
   }, [tickets]);
 
   // Fetch real tickets from backend on mount and periodically (live KDS polling)
-  const fetchBackendOrders = async (silent = false) => {
+  const fetchBackendOrders = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const token = getAccessToken();
@@ -189,10 +205,45 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         const json = await res.json();
         const list = Array.isArray(json) ? json : json.data || [];
         const activeOrders = list.filter(
-          (o: any) => o.businessStatus !== 'completed' && o.businessStatus !== 'cancelled' && o.status !== 'deleted'
+          (o: { businessStatus?: string; status?: string }) => o.businessStatus !== 'completed' && o.businessStatus !== 'cancelled' && o.status !== 'deleted'
         );
 
-        const mapped: KitchenTicket[] = activeOrders.map((o: any) => {
+        const mapped: KitchenTicket[] = activeOrders.map((o: {
+          id: string | number;
+          createdAt?: string;
+          order?: { diningTable?: { name?: string }; table_number?: string; waiter_name?: string; waiter?: { name?: string } };
+          notes?: string;
+          station?: { name?: string };
+          priority?: number;
+          items?: Array<{
+            id: string | number;
+            product?: { name?: string };
+            productName?: string;
+            variant?: { name?: string };
+            variantName?: string;
+            quantity?: number;
+            notes?: string;
+            course?: string;
+            preparationStatus?: string;
+            holdUntil?: string;
+            firedAt?: string;
+            fired_at?: string;
+          }>;
+          kitchenOrderItems?: Array<{
+            id: string | number;
+            product?: { name?: string };
+            productName?: string;
+            variant?: { name?: string };
+            variantName?: string;
+            quantity?: number;
+            notes?: string;
+            course?: string;
+            preparationStatus?: string;
+            holdUntil?: string;
+            firedAt?: string;
+            fired_at?: string;
+          }>;
+        }) => {
           const createdAtDate = o.createdAt ? new Date(o.createdAt).getTime() : Date.now();
           const elapsedMins = Math.max(0, Math.floor((Date.now() - createdAtDate) / 60000));
           const tableName = o.order?.diningTable?.name
@@ -206,10 +257,11 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
             backendOrderId: o.id,
             table: tableName,
             timeElapsed: elapsedMins,
+            createdAtMs: createdAtDate,
             server: o.order?.waiter_name || o.order?.waiter?.name || 'Kitchen Staff',
             stationName: o.station?.name || 'General Kitchen',
             priority: (o.priority ?? 0) >= 2 ? 'high' : (o.priority ?? 0) === 1 ? 'medium' : 'normal',
-            items: (o.items || o.kitchenOrderItems || []).map((i: any) => {
+            items: (o.items || o.kitchenOrderItems || []).map((i) => {
               const prepStatusUpper = (i.preparationStatus || 'pending').toUpperCase() as PreparationStatus;
               let holdSeconds: number | undefined = undefined;
               if (prepStatusUpper === 'HELD') {
@@ -244,15 +296,17 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchBackendOrders();
+    void Promise.resolve().then(() => {
+      fetchBackendOrders(true);
+    });
     const interval = setInterval(() => {
       fetchBackendOrders(true);
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchBackendOrders]);
 
   // Manual FIRE of an entire Course for a Ticket
   const handleFireCourse = async (ticketId: string, course: CourseType) => {
@@ -285,7 +339,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
             item.course === course && item.preparationStatus === 'HELD'
               ? {
                   ...item,
-                  preparationStatus: 'PENDING' as PreparationStatus,
+                  preparationStatus: 'IN_PREPARATION' as PreparationStatus,
                   holdRemainingSeconds: 0,
                   firedAt: new Date().toISOString(),
                 }
@@ -333,7 +387,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
             alertMessage: `🔥 FIRED: ${itemName}`,
             items: t.items.map((i) =>
               i.id === itemId
-                ? { ...i, preparationStatus: 'PENDING', holdRemainingSeconds: 0, firedAt: new Date().toISOString() }
+                ? { ...i, preparationStatus: 'IN_PREPARATION', holdRemainingSeconds: 0, firedAt: new Date().toISOString() }
                 : i
             ),
           };
@@ -454,7 +508,7 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         ...t,
         items: t.items.map((i) =>
           i.preparationStatus === 'HELD'
-            ? { ...i, preparationStatus: 'PENDING', holdRemainingSeconds: 0, firedAt: new Date().toISOString() }
+            ? { ...i, preparationStatus: 'IN_PREPARATION', holdRemainingSeconds: 0, firedAt: new Date().toISOString() }
             : i
         ),
       }))
@@ -531,7 +585,14 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         return (b.isPulsing ? 1 : 0) - (a.isPulsing ? 1 : 0);
       }
 
-      // 2. SLA Critical Shield: órdenes con >= 15 min esperando tienen prioridad absoluta
+      // 2. Prioridad operativa inmediata: Tickets con platos en preparación activa (PREP / IN_PREPARATION / PENDING)
+      // se colocan al frente del KDS antes que tickets donde todos sus platos están retenidos (HELD) o listos (READY).
+      const isPreparingA = a.items.some((i) => i.preparationStatus === 'PENDING' || i.preparationStatus === 'IN_PREPARATION');
+      const isPreparingB = b.items.some((i) => i.preparationStatus === 'PENDING' || i.preparationStatus === 'IN_PREPARATION');
+      if (isPreparingA && !isPreparingB) return -1;
+      if (!isPreparingA && isPreparingB) return 1;
+
+      // 3. SLA Critical Shield: órdenes con >= 15 min esperando tienen prioridad absoluta
       const isCritA = (a.timeElapsed ?? 0) >= 15;
       const isCritB = (b.timeElapsed ?? 0) >= 15;
       if (isCritA && !isCritB) return -1;
@@ -540,16 +601,17 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
         return (b.timeElapsed ?? 0) - (a.timeElapsed ?? 0); // la más demorada primero
       }
 
-      // 3. Dynamic Priority Score ponderado por edad para órdenes regulares (< 15 min):
+      // 4. Prioridad de comanda asignada (High / Medium / Normal):
       const prioScoreMap: Record<string, number> = { high: 20, medium: 10, normal: 0 };
-      const scoreA = (prioScoreMap[a.priority] || 0) + ((a.timeElapsed ?? 0) * 1.5);
-      const scoreB = (prioScoreMap[b.priority] || 0) + ((b.timeElapsed ?? 0) * 1.5);
+      const prioDiff = (prioScoreMap[b.priority] || 0) - (prioScoreMap[a.priority] || 0);
+      if (prioDiff !== 0) return prioDiff;
 
-      if (Math.abs(scoreB - scoreA) > 0.01) {
-        return scoreB - scoreA;
-      }
+      // 5. Orden de llegada estricto y determinista (FIFO: el más viejo primero):
+      const timeA = a.createdAtMs ?? 0;
+      const timeB = b.createdAtMs ?? 0;
+      if (timeA !== timeB) return timeA - timeB;
 
-      return (b.timeElapsed ?? 0) - (a.timeElapsed ?? 0);
+      return (a.backendOrderId ?? 0) - (b.backendOrderId ?? 0);
     });
   }, [tickets, selectedStationFilter, activeCourseFilter]);
 
@@ -776,41 +838,69 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
 
                 {/* Ticket Body: Course Sequences */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                  {coursesPresent.map((courseType) => {
-                    const itemsInCourse = ticket.items.filter((i) => i.course === courseType);
-                    if (itemsInCourse.length === 0) return null;
+                  {(() => {
+                    // Ordenar cursos: primero los cursos que tienen platos preparándose activamente
+                    const sortedCourses = [...coursesPresent].sort((c1, c2) => {
+                      const items1 = ticket.items.filter((i) => i.course === c1);
+                      const items2 = ticket.items.filter((i) => i.course === c2);
+                      if (items1.length === 0 && items2.length === 0) return 0;
+                      if (items1.length === 0) return 1;
+                      if (items2.length === 0) return -1;
 
-                    const theme = getCourseTheme(courseType);
-                    const hasHeldItems = itemsInCourse.some((i) => i.preparationStatus === 'HELD');
+                      const active1 = items1.some((i) => i.preparationStatus === 'PENDING' || i.preparationStatus === 'IN_PREPARATION');
+                      const active2 = items2.some((i) => i.preparationStatus === 'PENDING' || i.preparationStatus === 'IN_PREPARATION');
+                      if (active1 && !active2) return -1;
+                      if (!active1 && active2) return 1;
 
-                    return (
-                      <div key={courseType} className="border border-zinc-800/80 rounded-lg p-3 bg-zinc-900/40">
-                        {/* Course Header with Quick FIRE Button */}
-                        <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-zinc-800">
-                          <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm text-zinc-400">{theme.icon}</span>
-                            <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${theme.badge}`}>
-                              {theme.title}
-                            </span>
+                      return coursesPresent.indexOf(c1) - coursesPresent.indexOf(c2);
+                    });
+
+                    return sortedCourses.map((courseType) => {
+                      const itemsInCourse = ticket.items.filter((i) => i.course === courseType);
+                      if (itemsInCourse.length === 0) return null;
+
+                      // Ordenar platos dentro del curso: PREP primero, luego READY, luego HELD
+                      const sortedItemsInCourse = [...itemsInCourse].sort((i1, i2) => {
+                        const rank = (s: PreparationStatus) => {
+                          if (s === 'PENDING' || s === 'IN_PREPARATION') return 1;
+                          if (s === 'READY') return 2;
+                          if (s === 'HELD') return 3;
+                          return 4;
+                        };
+                        return rank(i1.preparationStatus) - rank(i2.preparationStatus);
+                      });
+
+                      const theme = getCourseTheme(courseType);
+                      const hasHeldItems = sortedItemsInCourse.some((i) => i.preparationStatus === 'HELD');
+
+                      return (
+                        <div key={courseType} className="border border-zinc-800/80 rounded-lg p-3 bg-zinc-900/40">
+                          {/* Course Header with Quick FIRE Button */}
+                          <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-zinc-800">
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-sm text-zinc-400">{theme.icon}</span>
+                              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${theme.badge}`}>
+                                {theme.title}
+                              </span>
+                            </div>
+
+                            {/* FIRE COURSE Button */}
+                            {hasHeldItems && (
+                              <button
+                                onClick={() => handleFireCourse(ticket.id, courseType)}
+                                className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-black text-[10px] uppercase tracking-wider rounded transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                              >
+                                <span className="material-symbols-outlined text-xs">local_fire_department</span>
+                                <span>{theme.fireLabel}</span>
+                              </button>
+                            )}
                           </div>
 
-                          {/* FIRE COURSE Button */}
-                          {hasHeldItems && (
-                            <button
-                              onClick={() => handleFireCourse(ticket.id, courseType)}
-                              className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-black text-[10px] uppercase tracking-wider rounded transition-all flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
-                            >
-                              <span className="material-symbols-outlined text-xs">local_fire_department</span>
-                              <span>{theme.fireLabel}</span>
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Items in this course */}
-                        <div className="space-y-2.5">
-                          {itemsInCourse.map((item) => {
-                            const isHeld = item.preparationStatus === 'HELD';
-                            const isReady = item.preparationStatus === 'READY';
+                          {/* Items in this course */}
+                          <div className="space-y-2.5">
+                            {sortedItemsInCourse.map((item) => {
+                              const isHeld = item.preparationStatus === 'HELD';
+                              const isReady = item.preparationStatus === 'READY';
 
                             return (
                               <div
@@ -960,7 +1050,8 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
                         </div>
                       </div>
                     );
-                  })}
+                  });
+                })()}
                 </div>
 
                 {/* Ticket Footer Action Button */}

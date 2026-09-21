@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../lib/auth-storage';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 
 interface Category {
   id: number;
@@ -134,15 +135,8 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
   const currentUser = getStoredUser();
   const isInventorySpecialist = ['merchant_admin', 'admin', 'super_admin', 'SaaS Owner', 'Inventory Specialist'].includes(currentUser?.role || '');
 
-  useEffect(() => {
-    if (topRef.current) {
-      topRef.current.scrollIntoView({ behavior: 'instant' });
-    }
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       const token = getAccessToken();
@@ -154,7 +148,7 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
       const materialsRes = await fetch(`${API_BASE}/v1/inventory/raw-materials?limit=100&status=all`, { headers });
       if (materialsRes.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -172,16 +166,34 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
       const rawMaterialsData = materialsJson.items || materialsJson.data || materialsJson || [];
       const rawCategoriesData = categoriesJson.data || categoriesJson.items || categoriesJson || [];
       const stockData = stockJson.data || stockJson.items || stockJson || [];
-      const mappedMaterials: RawMaterial[] = rawMaterialsData.map((rm: any) => {
-        const stockItems = stockData.filter((s: any) => {
+      const mappedMaterials: RawMaterial[] = rawMaterialsData.map((rm: {
+        id: number;
+        code: string;
+        sku?: string | null;
+        name: string;
+        category_id?: number | null;
+        category?: { id: number; name: string } | null;
+        unit: string;
+        purchase_unit?: string | null;
+        consumption_unit?: string | null;
+        conversion_factor?: number | string;
+        cost_per_unit?: number | string | null;
+        description?: string | null;
+        isActive?: boolean;
+        created_at?: string;
+        createdAt?: string;
+        updated_at?: string;
+        updatedAt?: string;
+      }) => {
+        const stockItems = stockData.filter((s: { supplyId?: number; supply_id?: number; supply?: { id: number }; rawMaterialId?: number; raw_material_id?: number }) => {
           const sid = s.supplyId || s.supply_id || s.supply?.id || s.rawMaterialId || s.raw_material_id;
           return Number(sid) === Number(rm.id);
         });
-        const totalQty = stockItems.reduce((acc: number, cur: any) => acc + (Number(cur.currentQty) || 0), 0);
-        const minStockItem = stockItems.find((s: any) => s.minimumQty != null || s.minimum_qty != null);
-        const minStock = minStockItem ? (minStockItem.minimumQty ?? minStockItem.minimum_qty) : null;
-        const waccItem = stockItems.find((s: any) => s.weightedAverageUnitCost != null);
-        const wacc = waccItem ? waccItem.weightedAverageUnitCost : null;
+        const totalQty = stockItems.reduce((acc: number, cur: { currentQty?: number | string }) => acc + (Number(cur.currentQty) || 0), 0);
+        const minStockItem = stockItems.find((s: { minimumQty?: number | null; minimum_qty?: number | null }) => s.minimumQty != null || s.minimum_qty != null);
+        const minStock = minStockItem ? (minStockItem.minimumQty ?? minStockItem.minimum_qty ?? null) : null;
+        const waccItem = stockItems.find((s: { weightedAverageUnitCost?: number | null }) => s.weightedAverageUnitCost != null);
+        const wacc = waccItem ? (waccItem.weightedAverageUnitCost ?? null) : null;
 
 
         return {
@@ -208,13 +220,22 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
       setMaterials(mappedMaterials);
       setCategories(rawCategoriesData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching raw materials:', err);
       setError('Could not load raw materials. Please check connection with server.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
+
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant' });
+    }
+    void Promise.resolve().then(() => {
+      fetchData(true);
+    });
+  }, [fetchData]);
 
   const handleOpenAdd = () => {
     if (!isInventorySpecialist) return;
@@ -271,7 +292,19 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
     const isEdit = drawerMode === 'edit' && selectedMaterial;
     const finalSku = formSku && formSku.trim() !== '' ? formSku.trim() : undefined;
-    const bodyData: any = {
+    const bodyData: {
+      name: string;
+      sku?: string;
+      category_id?: number;
+      purchase_unit: string;
+      consumption_unit: string;
+      conversion_factor: number;
+      cost_per_unit?: number;
+      minimumQty?: number;
+      description?: string;
+      isActive: boolean;
+      code?: string;
+    } = {
       name: formName,
       sku: finalSku,
       category_id: formCategory ? Number(formCategory) : undefined,
@@ -318,8 +351,9 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
         }
 
         await fetchData();
-      } catch (err: any) {
-        alert(err.message || 'Could not complete the operation');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Could not complete the operation';
+        alert(msg);
       } finally {
         setIsLoading(false);
       }
@@ -395,8 +429,9 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
       setIsToggleModalOpen(false);
       await fetchData();
-    } catch (err: any) {
-      setToggleError(err.message || 'Error updating status');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error updating status';
+      setToggleError(msg);
     } finally {
       setIsToggling(false);
     }

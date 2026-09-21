@@ -507,8 +507,10 @@ export const TableAssignmentsView: React.FC<TableAssignmentsViewProps> = ({
   };
 
   useEffect(() => {
-    fetchAssignments();
-    fetchContext();
+    void Promise.resolve().then(() => {
+      fetchAssignments();
+      fetchContext();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

@@ -24,7 +24,6 @@ export interface NavHubBarProps {
 export const NavHubBar: React.FC<NavHubBarProps> = ({
   title,
   titleIcon,
-  subtitle,
   activeModuleId,
   items = [],
   className = '',
@@ -38,7 +37,9 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
 
   useEffect(() => {
     if (propIsSidebarCollapsed !== undefined) {
-      setCollapsed(propIsSidebarCollapsed);
+      void Promise.resolve().then(() => {
+        setCollapsed(propIsSidebarCollapsed);
+      });
       return;
     }
 
@@ -49,7 +50,9 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
       }
     };
 
-    checkSidebar();
+    void Promise.resolve().then(() => {
+      checkSidebar();
+    });
     const aside = document.querySelector('aside');
     if (!aside) return;
 

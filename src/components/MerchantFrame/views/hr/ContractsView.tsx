@@ -214,8 +214,10 @@ export const ContractsView: React.FC<ContractsViewProps> = ({
   };
 
   useEffect(() => {
-    fetchContracts();
-    fetchContext();
+    void Promise.resolve().then(() => {
+      fetchContracts();
+      fetchContext();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

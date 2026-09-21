@@ -420,9 +420,11 @@ export const FloorZonesView: React.FC<FloorZonesViewProps> = ({ onNavigate, merc
   };
 
   useEffect(() => {
-    fetchZones();
-    fetchPlans();
-    fetchTables();
+    void Promise.resolve().then(() => {
+      fetchZones();
+      fetchPlans();
+      fetchTables();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

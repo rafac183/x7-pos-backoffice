@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { getAccessToken } from '../../../../../lib/auth-storage';
 import { NavHubBar } from '../../../../shared/NavHubBar';
 import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
@@ -92,17 +93,26 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
   } | null>(null);
 
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastIdRef = useRef(0);
+
+  // Real-time clock for elapsed second counters
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const showToast = (text: string, type: 'success' | 'info' | 'warning' | 'auto_bump' = 'success') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setToastMessage({ text, type, id: Date.now() });
+    toastIdRef.current += 1;
+    setToastMessage({ text, type, id: toastIdRef.current });
     toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
     }, 4500);
   };
 
   // 1. Fetch stations
-  const fetchStations = async () => {
+  const fetchStations = useCallback(async () => {
     try {
       const token = getAccessToken();
       const res = await fetch(`${API_BASE}/kitchen-station?status=active&limit=100`, {
@@ -115,7 +125,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       const data = await res.json();
       const rawList = data.data || data || [];
       setStations(
-        rawList.map((s: any) => ({
+        rawList.map((s: { id: number; name: string; stationType?: string; station_type?: string }) => ({
           id: s.id,
           name: s.name,
           stationType: s.stationType || s.station_type,
@@ -124,10 +134,10 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
     } catch {
       // ignore station fetch error
     }
-  };
+  }, []);
 
   // 2. Fetch all kitchen order items
-  const loadItems = async (isBackground = false) => {
+  const loadItems = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     setError(null);
     try {
@@ -153,19 +163,22 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       const resData = await res.json();
       const rawItems: KitchenOrderItemDetail[] = resData.data || [];
       setItems(rawItems);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!isBackground) {
-        setError(err.message || 'Error loading kitchen items');
+        const msg = err instanceof Error ? err.message : 'Error loading kitchen items';
+        setError(msg);
       }
     } finally {
       if (!isBackground) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchStations();
-    loadItems();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchStations();
+      loadItems(false);
+    });
+  }, [fetchStations, loadItems]);
 
   // Polling interval
   useEffect(() => {
@@ -174,7 +187,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       loadItems(true);
     }, refreshInterval * 1000);
     return () => clearInterval(interval);
-  }, [refreshInterval]);
+  }, [refreshInterval, loadItems]);
 
   // Handle Tap-to-Increment (+1)
   const handleIncrement = async (item: KitchenOrderItemDetail, e?: React.MouseEvent) => {
@@ -261,8 +274,9 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
           cur === item.quantity ? 'success' : 'info'
         );
       }
-    } catch (err: any) {
-      showToast(err.message || 'Error updating item quantity', 'warning');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error updating item quantity';
+      showToast(msg, 'warning');
     } finally {
       setActionInProgressId(null);
     }
@@ -307,8 +321,9 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       const updatedItem = data.data || data;
       setItems(prev => prev.map(it => (it.id === item.id ? { ...it, ...updatedItem } : it)));
       showToast(`${item.product.name}: Decremented to ${newPrepared}/${item.quantity}`, 'info');
-    } catch (err: any) {
-      showToast(err.message || 'Error decrementing item', 'warning');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error decrementing item';
+      showToast(msg, 'warning');
     } finally {
       setActionInProgressId(null);
     }
@@ -351,8 +366,9 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
       // Check if ticket might be completed
       loadItems(true);
-    } catch (err: any) {
-      showToast(err.message || 'Error marking item ready', 'warning');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error marking item ready';
+      showToast(msg, 'warning');
     } finally {
       setActionInProgressId(null);
     }
@@ -384,8 +400,9 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       setItems(prev => prev.map(it => (it.id === item.id ? { ...it, ...updatedItem, preparationStatus: 'pending' } : it)));
       showToast(`🔥 Fired "${item.product?.name || 'Item'}" to active preparation queue!`, 'success');
       loadItems(true);
-    } catch (err: any) {
-      showToast(err.message || 'Error firing item', 'warning');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error firing item';
+      showToast(msg, 'warning');
     } finally {
       setActionInProgressId(null);
     }
@@ -432,8 +449,9 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       const updatedItem = data.data || data;
       setItems(prev => prev.map(it => (it.id === item.id ? { ...it, ...updatedItem } : it)));
       showToast(`Reset ${item.product.name} to PENDING (0/${item.quantity})`, 'info');
-    } catch (err: any) {
-      showToast(err.message || 'Error resetting item', 'warning');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error resetting item';
+      showToast(msg, 'warning');
     } finally {
       setActionInProgressId(null);
     }
@@ -465,16 +483,17 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
       showToast(`↺ RECALLED #KO-${kitchenOrderId} back to Active Preparation!`, 'info');
       await loadItems();
-    } catch (err: any) {
-      showToast(err.message || 'Error recalling order', 'warning');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error recalling order';
+      showToast(msg, 'warning');
     }
   };
 
   // 3. Computed Metrics & Filtered Data
   const activeItems = useMemo(() => {
     return items.filter(it => {
-      const orderStatus = (it.kitchenOrder as any)?.businessStatus?.toLowerCase();
-      const logicalOrderStatus = (it.kitchenOrder as any)?.status?.toLowerCase();
+      const orderStatus = (it.kitchenOrder as { businessStatus?: string } | null | undefined)?.businessStatus?.toLowerCase();
+      const logicalOrderStatus = (it.kitchenOrder as { status?: string } | null | undefined)?.status?.toLowerCase();
       return (
         it.status !== 'deleted' &&
         orderStatus !== 'cancelled' &&
@@ -556,20 +575,40 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
         return tierA - tierB;
       }
 
-      // Tier 1: Active orders -> High priority first
+      // Tier 1: Active orders -> Items in preparation / pending first!
       if (tierA === 1) {
+        // 1. PRIORIDAD OPERATIVA DE COCINA:
+        // Lo que se está cocinando / pendiente va primero que lo pausado (HELD) o ya listo
+        const getPrepRank = (status?: string): number => {
+          switch (status) {
+            case 'in_preparation':
+              return 1;
+            case 'pending':
+              return 2;
+            case 'ready':
+              return 3;
+            case 'held':
+              return 4;
+            default:
+              return 5;
+          }
+        };
+
+        const rankA = getPrepRank(a.preparationStatus);
+        const rankB = getPrepRank(b.preparationStatus);
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+
+        // 2. Prioridad de orden si ambos tienen el mismo estado de preparación
         const prioA = a.kitchenOrder?.priority ?? 0;
         const prioB = b.kitchenOrder?.priority ?? 0;
         if (prioB !== prioA) return prioB - prioA;
 
-        // FIFO: Oldest created first, newest last
+        // 3. FIFO para el mismo estado de preparación: el más antiguo primero
         const timeA = new Date(a.createdAt).getTime();
         const timeB = new Date(b.createdAt).getTime();
         if (timeA !== timeB) return timeA - timeB;
-
-        // Ready items in active orders placed slightly below pending/in-prep
-        if (a.preparationStatus === 'ready' && b.preparationStatus !== 'ready') return 1;
-        if (b.preparationStatus === 'ready' && a.preparationStatus !== 'ready') return -1;
 
         return a.id - b.id;
       }
@@ -596,7 +635,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
   // Format Elapsed Time
   const formatElapsedTime = (dateStr: string): string => {
     const start = new Date(dateStr).getTime();
-    const diffSec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+    const diffSec = Math.max(0, Math.floor((currentTime - start) / 1000));
     const mins = Math.floor(diffSec / 60);
     const secs = diffSec % 60;
     if (mins >= 60) {

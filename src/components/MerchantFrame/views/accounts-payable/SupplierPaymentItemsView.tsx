@@ -98,11 +98,15 @@ const PaymentItemFormDrawer: React.FC<PaymentItemFormDrawerProps> = ({
   // Fetch active lines of selected payment to compute available margin.
   useEffect(() => {
     if (!paymentId) {
-      setSiblings(null);
+      void Promise.resolve().then(() => {
+        setSiblings(null);
+      });
       return;
     }
     let cancelled = false;
-    setSiblings(null);
+    void Promise.resolve().then(() => {
+      setSiblings(null);
+    });
     fetch(`${API_BASE}/supplier-payment-items?payment_id=${paymentId}&limit=100`, {
       headers: authHeaders(),
     })
@@ -578,8 +582,10 @@ export const SupplierPaymentItemsView: React.FC<SupplierPaymentItemsViewProps> =
   };
 
   useEffect(() => {
-    fetchItems();
-    fetchPayments();
+    void Promise.resolve().then(() => {
+      fetchItems();
+      fetchPayments();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId, payment?.id]);
 

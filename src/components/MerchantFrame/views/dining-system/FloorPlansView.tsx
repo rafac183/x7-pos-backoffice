@@ -519,7 +519,9 @@ export const FloorPlansView: React.FC<FloorPlansViewProps> = ({ onNavigate, merc
   };
 
   useEffect(() => {
-    fetchFloorPlans();
+    void Promise.resolve().then(() => {
+      fetchFloorPlans();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

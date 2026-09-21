@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken } from '../../../../../lib/auth-storage';
 import { NavHubBar } from '../../../../shared/NavHubBar';
 import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 import { AppModal } from '../../../shared/AppModal';
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 
@@ -195,10 +196,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   const [catalogProducts, setCatalogProducts] = useState<string[]>(DEFAULT_MENU_PRODUCTS);
   const [productVariantsMap, setProductVariantsMap] = useState<Record<string, string[]>>(DEFAULT_PRODUCT_VARIANTS);
   const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   // Workspace Mode (Live Bump Screen vs Historical Audit Table)
   const [workspaceMode, setWorkspaceMode] = useState<'bump' | 'audit'>('bump');
@@ -279,7 +278,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   const topRef = useRef<HTMLDivElement>(null);
 
   // Real-time clock for elapsed second counters
-  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -308,12 +307,12 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
         const res = await fetch(`${API_BASE}/kitchen-station?status=active&limit=100`, { headers });
         if (!res.ok) return;
         const data = await res.json();
-        const rawList = data.data || data || [];
+        const rawList: Record<string, unknown>[] = data.data || data || [];
         setStations(
-          rawList.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            stationType: s.stationType || s.station_type,
+          rawList.map((s) => ({
+            id: Number(s.id),
+            name: String(s.name || ''),
+            stationType: (s.stationType || s.station_type) as KitchenStationType | undefined,
           }))
         );
       } catch {
@@ -338,14 +337,14 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
 
         if (prodRes && prodRes.ok) {
           const data = await prodRes.json();
-          const rawList = data.data || data || [];
-          rawList.forEach((p: any) => {
+          const rawList: Record<string, unknown>[] = data.data || data || [];
+          rawList.forEach((p) => {
             if (p?.name && typeof p.name === 'string' && p.name.trim().length > 0) {
               productNames.push(p.name);
               if (Array.isArray(p.variants) && p.variants.length > 0) {
-                const varNames = p.variants
-                  .map((v: any) => v.name)
-                  .filter((n: any) => typeof n === 'string' && n.trim().length > 0);
+                const varNames = (p.variants as Record<string, unknown>[])
+                  .map((v) => v.name)
+                  .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
                 if (varNames.length > 0) {
                   newMap[p.name] = Array.from(new Set([...(newMap[p.name] || []), ...varNames]));
                 }
@@ -356,10 +355,10 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
 
         if (varRes && varRes.ok) {
           const varData = await varRes.json();
-          const varList = varData.data || varData || [];
-          varList.forEach((v: any) => {
-            const pName = v.product?.name;
-            if (pName && v.name) {
+          const varList: Record<string, unknown>[] = varData.data || varData || [];
+          varList.forEach((v) => {
+            const pName = (v.product as Record<string, unknown> | undefined)?.name;
+            if (typeof pName === 'string' && typeof v.name === 'string') {
               if (!newMap[pName]) {
                 newMap[pName] = [];
               }
@@ -384,9 +383,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   }, []);
 
   // 2. Fetch all orders
-  const loadOrders = async (isBackground = false) => {
-    if (!isBackground) setLoading(true);
-    setRefreshing(true);
+  const loadOrders = useCallback(async (isBackground = false, isSilent = false) => {
+    if (!isBackground && !isSilent) setLoading(true);
     setLoadError(null);
     try {
       const token = getAccessToken();
@@ -398,6 +396,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       const params = new URLSearchParams({
         limit: '100',
         page: '1',
+        sortBy: 'createdAt',
+        sortOrder: 'ASC',
       });
 
       const res = await fetch(`${API_BASE}/kitchen-orders?${params.toString()}`, { headers });
@@ -408,62 +408,63 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       const resData = await res.json();
       const rawOrders = resData.data || resData || [];
 
-      const parsedOrders: KitchenOrderTicket[] = rawOrders.map((o: any) => ({
-        id: o.id,
-        merchantId: o.merchantId || o.merchant_id,
-        orderId: o.orderId || o.order_id || null,
-        onlineOrderId: o.onlineOrderId || o.online_order_id || null,
-        stationId: o.stationId || o.station_id || o.station?.id || null,
-        stationName: o.stationName || o.station?.name || null,
-        priority: o.priority ?? 0,
-        businessStatus: o.businessStatus || o.business_status || 'pending',
-        startedAt: o.startedAt || o.started_at || null,
-        completedAt: o.completedAt || o.completed_at || null,
-        cancelledAt: o.cancelledAt || o.cancelled_at || null,
-        cancellationReason: o.cancellationReason || o.cancellation_reason || null,
-        cancelledByUserId: o.cancelledByUserId || o.cancelled_by_user_id || null,
-        notes: o.notes || null,
-        status: o.status || 'active',
-        createdAt: o.createdAt || o.created_at || new Date().toISOString(),
-        updatedAt: o.updatedAt || o.updated_at || new Date().toISOString(),
-        items: (o.kitchenOrderItems || []).map((it: any) => ({
-          id: it.id,
-          kitchenOrderId: it.kitchenOrderId || it.kitchen_order_id || o.id,
-          orderItemId: it.orderItemId || it.order_item_id || null,
-          productId: it.productId || it.product_id || it.product?.id,
-          productName: it.product?.name || it.productName || 'Dish Item',
-          variantName: it.variant?.name || it.variantName || null,
-          quantity: it.quantity ?? 1,
-          preparedQuantity: it.preparedQuantity ?? it.prepared_quantity ?? 0,
-          preparationStatus: it.preparationStatus || it.preparation_status || 'pending',
-          course: it.course || null,
-          holdUntil: it.holdUntil || it.hold_until || null,
-          firedAt: it.firedAt || it.fired_at || null,
-          notes: it.notes || null,
+      const parsedOrders: KitchenOrderTicket[] = (rawOrders as Record<string, unknown>[]).map((o) => ({
+        id: Number(o.id),
+        merchantId: Number(o.merchantId || o.merchant_id),
+        orderId: (o.orderId || o.order_id || null) as number | null,
+        onlineOrderId: (o.onlineOrderId || o.online_order_id || null) as string | null,
+        stationId: (o.stationId || o.station_id || (o.station as Record<string, unknown> | undefined)?.id || null) as number | null,
+        stationName: (o.stationName || (o.station as Record<string, unknown> | undefined)?.name || null) as string | null,
+        priority: Number(o.priority ?? 0),
+        businessStatus: (o.businessStatus || o.business_status || 'pending') as KitchenOrderBusinessStatus,
+        startedAt: (o.startedAt || o.started_at || null) as string | null,
+        completedAt: (o.completedAt || o.completed_at || null) as string | null,
+        cancelledAt: (o.cancelledAt || o.cancelled_at || null) as string | null,
+        cancellationReason: (o.cancellationReason || o.cancellation_reason || null) as KitchenCancellationReason | null,
+        cancelledByUserId: (o.cancelledByUserId || o.cancelled_by_user_id || null) as number | null,
+        notes: (o.notes || null) as string | null,
+        status: (o.status || 'active') as 'active' | 'deleted',
+        createdAt: String(o.createdAt || o.created_at || new Date().toISOString()),
+        updatedAt: String(o.updatedAt || o.updated_at || new Date().toISOString()),
+        items: ((o.kitchenOrderItems as Record<string, unknown>[]) || []).map((it) => ({
+          id: Number(it.id),
+          kitchenOrderId: Number(it.kitchenOrderId || it.kitchen_order_id || o.id),
+          orderItemId: (it.orderItemId || it.order_item_id || null) as number | null,
+          productId: Number(it.productId || it.product_id || (it.product as Record<string, unknown> | undefined)?.id),
+          productName: String((it.product as Record<string, unknown> | undefined)?.name || it.productName || 'Dish Item'),
+          variantName: ((it.variant as Record<string, unknown> | undefined)?.name || it.variantName || null) as string | null,
+          quantity: Number(it.quantity ?? 1),
+          preparedQuantity: Number(it.preparedQuantity ?? it.prepared_quantity ?? 0),
+          preparationStatus: (it.preparationStatus || it.preparation_status || 'pending') as 'pending' | 'in_progress' | 'ready' | 'cancelled',
+          course: (it.course || null) as string | null,
+          holdUntil: (it.holdUntil || it.hold_until || null) as string | null,
+          firedAt: (it.firedAt || it.fired_at || null) as string | null,
+          notes: (it.notes || null) as string | null,
         })),
       }));
 
       setOrders(parsedOrders);
-      setLastUpdated(new Date());
-    } catch (e: any) {
-      setLoadError(e.message || 'Error syncing kitchen orders');
-      showToast(e.message || 'Error syncing kitchen orders', 'warning');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Error syncing kitchen orders';
+      setLoadError(message);
+      showToast(message, 'warning');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    void Promise.resolve().then(() => {
+      loadOrders(false, true);
+    });
+  }, [loadOrders]);
 
   // Polling interval
   useEffect(() => {
     if (autoRefreshInterval <= 0) return;
     const timer = setInterval(() => loadOrders(true), autoRefreshInterval * 1000);
     return () => clearInterval(timer);
-  }, [autoRefreshInterval]);
+  }, [autoRefreshInterval, loadOrders]);
 
   // Station Filtered pool for KPI metrics
   const stationOrders = useMemo(() => {
@@ -501,14 +502,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     () => stationOrders.filter(o => o.businessStatus === 'pending' || o.businessStatus === 'started').length,
     [stationOrders]
   );
-  const pendingOrdersCount = useMemo(
-    () => stationOrders.filter(o => o.businessStatus === 'pending').length,
-    [stationOrders]
-  );
-  const inPrepCount = useMemo(
-    () => stationOrders.filter(o => o.businessStatus === 'started').length,
-    [stationOrders]
-  );
   const completedOrdersCount = useMemo(
     () => stationOrders.filter(o => o.businessStatus === 'completed').length,
     [stationOrders]
@@ -517,14 +510,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     () => stationOrders.filter(o => o.businessStatus === 'cancelled').length,
     [stationOrders]
   );
-  const criticalOrdersCount = useMemo(() => {
-    return stationOrders.filter(o => {
-      if (o.businessStatus !== 'pending' && o.businessStatus !== 'started') return false;
-      const refTime = o.startedAt ? new Date(o.startedAt).getTime() : new Date(o.createdAt).getTime();
-      const elapsedMinutes = (currentTime - refTime) / (1000 * 60);
-      return elapsedMinutes > 15;
-    }).length;
-  }, [stationOrders, currentTime]);
 
   // Segmented Date Range Counts (Image 2 style)
   const dateCounts = useMemo(() => {
@@ -647,15 +632,16 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
     }
 
     // 5. Dynamic Sorting (Option 1):
-    // Tier 1: Active Orders (pending / started) -> At the top, FIFO (oldest createdAt first), priority RUSH first
-    // Tier 2: Completed Orders (completed) -> Below active orders, newest completedAt first
-    // Tier 3: Cancelled Orders (cancelled) -> At the very bottom, newest cancelledAt/createdAt first
-    const getStatusTier = (status: KitchenOrderBusinessStatus): number => {
+    // Tier 1: Active Orders (started / pending) -> Al inicio, orden de llegada (el más viejo primero)
+    // Tier 2: Completed Orders (completed / ready) -> Abajo de activas, orden de llegada (el más viejo primero)
+    // Tier 3: Cancelled Orders (cancelled) -> Al fondo de todo, orden de llegada
+    const getStatusTier = (status: KitchenOrderBusinessStatus | string): number => {
       switch (status) {
-        case 'pending':
         case 'started':
+        case 'pending':
           return 1;
         case 'completed':
+        case 'ready':
           return 2;
         case 'cancelled':
           return 3;
@@ -668,57 +654,46 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       const tierA = getStatusTier(a.businessStatus);
       const tierB = getStatusTier(b.businessStatus);
 
+      // Separación por estado principal:
+      // Tier 1: Activas (started / pending)
+      // Tier 2: Listas / Completadas (ready / completed)
+      // Tier 3: Canceladas (siempre abajo de todo)
       if (tierA !== tierB) {
         return tierA - tierB;
       }
 
-      // Tier 1: Active orders (pending / started)
-      // Regla de Negocio: SLA Critical Shield (>= 15 min de espera) + Dynamic Priority Score
+      // Tier 1: Activas (started / pending)
       if (tierA === 1) {
-        const now = Date.now();
+        const now = currentTime;
         const elapsedMinsA = Math.max(0, Math.floor((now - new Date(a.createdAt).getTime()) / 60000));
         const elapsedMinsB = Math.max(0, Math.floor((now - new Date(b.createdAt).getTime()) / 60000));
 
-        // 1. SLA Shield: Órdenes críticas (>= 15 min esperando) adquieren inmunidad frente a adelantamientos
+        // 1. Regla de minutos máximos (SLA Shield >= 15 min):
+        // Si una orden lleva demasiado tiempo esperando (>= 15 min), NINGUNA orden nueva en prep puede pasarle por encima.
         const isCriticalA = elapsedMinsA >= 15;
         const isCriticalB = elapsedMinsB >= 15;
-
-        if (isCriticalA && !isCriticalB) return -1; // Orden A en demora crítica se atiende primero
-        if (!isCriticalA && isCriticalB) return 1;  // Orden B en demora crítica se atiende primero
+        if (isCriticalA && !isCriticalB) return -1;
+        if (!isCriticalA && isCriticalB) return 1;
         if (isCriticalA && isCriticalB) {
-          // Si ambas están en estado crítico, FIFO estricto (la más antigua primero)
-          return elapsedMinsB - elapsedMinsA;
+          return elapsedMinsB - elapsedMinsA; // la más demorada primero
         }
 
-        // 2. Cocción en marcha ('started') no se interrumpe por una nueva orden en cola ('pending')
-        if (a.businessStatus === 'started' && b.businessStatus === 'pending') return -1;
-        if (a.businessStatus === 'pending' && b.businessStatus === 'started') return 1;
-
-        // 3. Dynamic Priority Score ponderado por edad para órdenes regulares (< 15 min):
-        // Puntos = (Prioridad * 10) + (Minutos de espera * 1.5)
-        const scoreA = (a.priority * 10) + (elapsedMinsA * 1.5);
-        const scoreB = (b.priority * 10) + (elapsedMinsB * 1.5);
-
-        if (Math.abs(scoreB - scoreA) > 0.01) {
-          return scoreB - scoreA;
-        }
-
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        // 2. Prioridad operativa de cocina (para órdenes dentro del tiempo estándar < 15 min):
+        // Lo que se está cocinando activamente (in_preparation) va PRIMERO antes que órdenes retenidas (held)
+        const hasPrepA = a.items.some(it => it.preparationStatus === 'in_preparation');
+        const hasPrepB = b.items.some(it => it.preparationStatus === 'in_preparation');
+        if (hasPrepA && !hasPrepB) return -1;
+        if (!hasPrepA && hasPrepB) return 1;
       }
 
-      // Tier 2: Completed orders -> Oldest first (oldest on top among completed, just below active orders)
-      if (tierA === 2) {
-        const timeA = a.completedAt ? new Date(a.completedAt).getTime() : new Date(a.createdAt).getTime();
-        const timeB = b.completedAt ? new Date(b.completedAt).getTime() : new Date(b.createdAt).getTime();
-        return timeA - timeB;
-      }
+      // Dentro de cada categoría: orden de llegada estricto (FIFO: el más viejo primero)
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      if (timeA !== timeB) return timeA - timeB;
 
-      // Tier 3: Cancelled orders -> Oldest first at the bottom
-      const timeA = a.cancelledAt ? new Date(a.cancelledAt).getTime() : new Date(a.createdAt).getTime();
-      const timeB = b.cancelledAt ? new Date(b.cancelledAt).getTime() : new Date(b.createdAt).getTime();
-      return timeA - timeB;
+      return a.id - b.id;
     });
-  }, [stationOrders, statusFilter, cancellationFilter, dateRangePreset, customStartDate, customEndDate, searchQuery]);
+  }, [stationOrders, statusFilter, cancellationFilter, dateRangePreset, customStartDate, customEndDate, searchQuery, currentTime]);
 
   // Paginated records for table view
   const paginatedOrders = useMemo(() => {
@@ -748,7 +723,22 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       if (res.ok) {
         const nowIso = new Date().toISOString();
         setOrders(prev =>
-          prev.map(o => (o.id === order.id ? { ...o, businessStatus: 'started', startedAt: nowIso } : o))
+          prev.map(o =>
+            o.id === order.id
+              ? {
+                  ...o,
+                  businessStatus: 'started',
+                  startedAt: nowIso,
+                  items: o.items.map(it => ({
+                    ...it,
+                    preparationStatus:
+                      it.preparationStatus === 'held' || it.preparationStatus === 'pending'
+                        ? 'in_preparation'
+                        : it.preparationStatus,
+                  })),
+                }
+              : o
+          )
         );
         showToast(`Order #KO-${order.id} STARTED preparation`, 'info');
       }
@@ -886,8 +876,9 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
           : (errJson?.message || 'Failed to cancel order');
         showToast(msg, 'warning');
       }
-    } catch (err: any) {
-      showToast(err?.message || 'Error cancelling order', 'warning');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error cancelling order';
+      showToast(message, 'warning');
     } finally {
       setCancelSubmitting(false);
     }
@@ -1244,7 +1235,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             {(statusFilter === 'cancelled' || workspaceMode === 'audit') && (
               <select
                 value={cancellationFilter}
-                onChange={e => setCancellationFilter(e.target.value as any)}
+                onChange={e => setCancellationFilter(e.target.value as KitchenCancellationReason | 'ALL')}
                 className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] outline-none font-sans text-secondary cursor-pointer"
                 aria-label="Filter by cancellation reason"
               >
@@ -1644,10 +1635,12 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredOrders.map(order => {
-            const isStarted = order.businessStatus === 'started';
-            const isPending = order.businessStatus === 'pending';
+            const isAllHeld = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'held');
+            const hasActivePrep = order.items.some(it => it.preparationStatus === 'in_preparation' || it.preparationStatus === 'ready');
+            const isStarted = order.businessStatus === 'started' && hasActivePrep;
             const isCompleted = order.businessStatus === 'completed';
             const isCancelled = order.businessStatus === 'cancelled';
+            const isPending = !isStarted && !isCompleted && !isCancelled;
 
             const startReference = order.startedAt
               ? new Date(order.startedAt).getTime()
@@ -1660,6 +1653,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             let timerColorClass = 'bg-stone-700 text-white';
             if (elapsedMinutes >= 15) {
               timerColorClass = 'bg-red-600 text-white animate-pulse font-black';
+            } else if (isAllHeld) {
+              timerColorClass = 'bg-amber-700 text-white font-bold';
             } else if (elapsedMinutes >= 8) {
               timerColorClass = 'bg-amber-600 text-white font-bold';
             } else if (isStarted) {
@@ -1674,6 +1669,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                     ? 'border-emerald-400 ring-1 ring-emerald-200 bg-emerald-50/10'
                     : isCancelled
                     ? 'border-red-200 bg-stone-50/70 opacity-65 hover:opacity-100'
+                    : isAllHeld
+                    ? 'border-amber-300 ring-2 ring-amber-100 shadow-sm'
                     : isStarted
                     ? 'border-blue-400 ring-2 ring-blue-100 shadow-sm'
                     : 'border-[#e8e2d8]'
@@ -1686,6 +1683,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                       ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
                       : isCancelled
                       ? 'bg-red-50 border-red-200 text-red-950'
+                      : isAllHeld
+                      ? 'bg-amber-50/90 border-amber-200 text-amber-950'
                       : isStarted
                       ? 'bg-blue-50/90 border-blue-200 text-blue-950'
                       : 'bg-[#fcfbf9] border-[#e8e2d8] text-[#1d1c17]'
@@ -1697,6 +1696,11 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                       {isCompleted && (
                         <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-black tracking-wide">
                           READY
+                        </span>
+                      )}
+                      {isAllHeld && (
+                        <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-black tracking-wide">
+                          HELD
                         </span>
                       )}
                       {isStarted && (
@@ -1750,7 +1754,15 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
 
                   {/* Dishes List */}
                   <div className="space-y-2 flex-1 py-1">
-                    {order.items.map(it => (
+                    {[...order.items].sort((a, b) => {
+                      const rank = (st: string) => {
+                        if (st === 'in_preparation' || st === 'pending') return 1;
+                        if (st === 'ready') return 2;
+                        if (st === 'held') return 3;
+                        return 4;
+                      };
+                      return rank(a.preparationStatus) - rank(b.preparationStatus);
+                    }).map(it => (
                       <div
                         key={it.id}
                         className="p-2 rounded-lg bg-[#fcfbf9] border border-[#ebe5da] flex items-start justify-between gap-2 text-xs text-[#1d1c17] transition-colors hover:border-[#ded5c5]"
@@ -2123,8 +2135,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                     stationId: formStationId ? Number(formStationId) : (stations[0]?.id || null),
                     priority: Number(formPriority),
                     orderId: formOrderId ? Number(formOrderId) : null,
-                    notes: formNotes.trim() || null,
-                    businessStatus: 'pending',
+                    businessStatus: 'started',
+                    startedAt: new Date().toISOString(),
                     kitchenOrderItems: validItems.map((it) => ({
                       productName: it.productName.trim(),
                       variantName: it.variantName.trim() || null,
@@ -2153,8 +2165,9 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                     const msg = Array.isArray(errJson?.message) ? errJson.message[0] : (errJson?.message || 'Failed to create order');
                     setCreateError(msg);
                   }
-                } catch (err: any) {
-                  setCreateError(err.message || 'Network error creating order');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Network error creating order';
+                  setCreateError(message);
                 } finally {
                   setIsCreating(false);
                 }

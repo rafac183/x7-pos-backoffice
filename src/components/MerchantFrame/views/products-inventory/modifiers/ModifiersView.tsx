@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 
 interface Product {
   id: number;
@@ -74,7 +74,7 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -93,7 +93,7 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
 
       if (modifiersRes.status === 401 || productsRes.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -112,7 +112,7 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
         : (productsJson.data || productsJson.items || []);
 
       // Map modifiers
-      const mappedModifiers = modifiersData.map((m: any) => ({
+      const mappedModifiers = modifiersData.map((m: { id: number; name: string; priceDelta: number | string; isActive?: boolean; product?: { id: number; name: string } | null }) => ({
         id: m.id,
         name: m.name,
         priceDelta: m.priceDelta,
@@ -121,24 +121,26 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
       }));
 
       // Mapear productos
-      const mappedProducts = productsData.map((p: any) => ({
+      const mappedProducts = productsData.map((p: { id: number; name: string }) => ({
         id: p.id,
         name: p.name
       }));
 
       setModifiers(mappedModifiers);
       setProducts(mappedProducts);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching modifiers data:', err);
       setError('Failed to load modifiers. Please check if the backend is running.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchAllData();
+    });
+  }, [fetchAllData]);
 
   const handleExportCSV = () => {
     if (filteredModifiers.length === 0) return;
@@ -248,9 +250,10 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
       );
       setIsConfirmModalOpen(false);
       setConfirmTargetModifier(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setToggleError(err.message || 'Error updating modifier status');
+      const msg = err instanceof Error ? err.message : 'Error updating modifier status';
+      setToggleError(msg);
     } finally {
       setIsToggling(false);
     }
@@ -278,7 +281,7 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const bodyData: any = {
+      const bodyData: { name: string; priceDelta: number; isActive: boolean; productId?: number } = {
         name: formName,
         priceDelta: deltaNum,
         isActive: formIsActive
@@ -309,9 +312,10 @@ export const ModifiersView: React.FC<ModifiersViewProps> = ({ onNavigate }) => {
 
       setIsModalOpen(false);
       fetchAllData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Error saving modifier');
+      const msg = err instanceof Error ? err.message : 'Error saving modifier';
+      alert(msg);
     }
   };
 

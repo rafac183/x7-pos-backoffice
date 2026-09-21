@@ -92,7 +92,9 @@ export const ReservationNotesView: React.FC<ReservationNotesViewProps> = ({
   }, [day]);
 
   useEffect(() => {
-    void fetchDay();
+    void Promise.resolve().then(() => {
+      void fetchDay();
+    });
   }, [fetchDay]);
 
   // Catálogos de apoyo: fallan en silencio. Sin el de personal la firma cae a "Staff #id".

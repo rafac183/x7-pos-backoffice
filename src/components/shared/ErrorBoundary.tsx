@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
       localStorage.removeItem('x7_journal_entries_v3');
       localStorage.removeItem('x7_merchant_tax_rules_v1');
       localStorage.removeItem('x7_ledger_accounts_v1');
-    } catch (e) {
+    } catch {
       // ignore
     }
     window.location.reload();

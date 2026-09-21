@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getSaasToken, clearSaasToken } from '../../../lib/saas-auth-storage';
 import type {
@@ -234,19 +234,19 @@ export const MerchantSettlementsView: React.FC<MerchantSettlementsViewProps> = (
     return () => clearTimeout(t);
   }, [toast]);
 
-  const authHeaders = (): Record<string, string> => {
+  const authHeaders = useCallback((): Record<string, string> => {
     const token = getSaasToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
-  };
+  }, []);
 
-  const handleUnauthorized = () => {
+  const handleUnauthorized = useCallback(() => {
     clearSaasToken();
-    window.location.href = '/saas-admin';
-  };
+    window.location.assign('/saas-admin');
+  }, []);
 
-  const fetchSettlements = async () => {
+  const fetchSettlements = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -261,11 +261,13 @@ export const MerchantSettlementsView: React.FC<MerchantSettlementsViewProps> = (
     } finally {
       setLoading(false);
     }
-  };
+  }, [authHeaders, handleUnauthorized]);
 
   useEffect(() => {
-    fetchSettlements();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchSettlements();
+    });
+  }, [fetchSettlements]);
 
   // Generates daily settlements from collected orders.
   const handleGenerate = async () => {
@@ -281,8 +283,8 @@ export const MerchantSettlementsView: React.FC<MerchantSettlementsViewProps> = (
       // The endpoint returns the updated list of settlements.
       setSettlements(json.data ?? []);
       setToast({ message: 'Daily settlements generated successfully', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: err.message || 'Failed to generate settlements', type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to generate settlements', type: 'error' });
     } finally {
       setGenerating(false);
     }
@@ -303,9 +305,9 @@ export const MerchantSettlementsView: React.FC<MerchantSettlementsViewProps> = (
       setSettlements((prev) => prev.map((s) => (s.id === json.data.id ? json.data : s)));
       setPayingSettlement(null);
       setToast({ message: 'Payout executed successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPayingSettlement(null);
-      setToast({ message: err.message || 'Failed to execute payout', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to execute payout', type: 'error' });
     } finally {
       setPaySubmitting(false);
     }
@@ -320,8 +322,8 @@ export const MerchantSettlementsView: React.FC<MerchantSettlementsViewProps> = (
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.message || 'Failed to load settlement details');
       setDetailSettlement(json.data);
-    } catch (err: any) {
-      setToast({ message: err.message || 'Failed to load settlement details', type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to load settlement details', type: 'error' });
     }
   };
 

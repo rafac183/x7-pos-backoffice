@@ -285,7 +285,9 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
 
   useEffect(() => {
     if (!plan) {
-      setLoadingPlans(true);
+      void Promise.resolve().then(() => {
+        setLoadingPlans(true);
+      });
       saasService.getSubscriptionPlans()
         .then((data) => {
           setPlans(data);
@@ -302,16 +304,21 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
         })
         .finally(() => setLoadingPlans(false));
     } else {
-      setSelectedPlanState(plan);
+      void Promise.resolve().then(() => {
+        setSelectedPlanState(plan);
+      });
     }
   }, [plan]);
 
+  const selectedPlanId = selectedPlanState?.id;
   useEffect(() => {
-    if (!selectedPlanState) return;
-    setLoading(true);
-    setFetchError(false);
+    if (!selectedPlanId) return;
+    void Promise.resolve().then(() => {
+      setLoading(true);
+      setFetchError(false);
+    });
     saasService
-      .getPlanApplications(selectedPlanState.id)
+      .getPlanApplications(selectedPlanId)
       .then(setPlanApplications)
       .catch((err) => {
         const msg = err instanceof Error ? err.message : 'Failed to load plan applications';
@@ -326,7 +333,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
         }
       })
       .finally(() => setLoading(false));
-  }, [selectedPlanState?.id]);
+  }, [selectedPlanId]);
 
   useEffect(() => {
     if (!toast) return;

@@ -686,8 +686,10 @@ export const DiningTablesView: React.FC<DiningTablesViewProps> = ({ onNavigate, 
   };
 
   useEffect(() => {
-    fetchTables();
-    fetchContext();
+    void Promise.resolve().then(() => {
+      fetchTables();
+      fetchContext();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

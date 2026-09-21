@@ -692,12 +692,16 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
   };
 
   useEffect(() => {
-    fetchInvoices();
+    void Promise.resolve().then(() => {
+      fetchInvoices();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId, viewMode]);
 
   useEffect(() => {
-    fetchSuppliers();
+    void Promise.resolve().then(() => {
+      fetchSuppliers();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId]);
 
@@ -760,9 +764,9 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
       setInvoices((prev) => [json.data, ...prev]);
       setFormDrawer(null);
       setToast({ message: 'Invoice registered successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to register invoice', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to register invoice', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -782,9 +786,9 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
       setInvoices((prev) => prev.map((inv) => (inv.id === json.data.id ? json.data : inv)));
       setFormDrawer(null);
       setToast({ message: 'Invoice updated successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to update invoice', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to update invoice', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -807,9 +811,9 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
       setInvoices((prev) => prev.filter((inv) => inv.id !== deletingInvoice.id));
       setDeletingInvoice(null);
       setToast({ message: 'Invoice deleted successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setDeletingInvoice(null);
-      setToast({ message: err.message || 'Failed to delete invoice', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to delete invoice', type: 'error' });
     } finally {
       setDeleteSubmitting(false);
     }
@@ -832,9 +836,9 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
       setInvoices((prev) => prev.filter((inv) => inv.id !== restoringInvoice.id));
       setRestoringInvoice(null);
       setToast({ message: 'Invoice restored successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setRestoringInvoice(null);
-      setToast({ message: err.message || 'Failed to restore invoice', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to restore invoice', type: 'error' });
     } finally {
       setRestoreSubmitting(false);
     }
@@ -870,8 +874,8 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
       }
 
       setDetailInvoice({ ...inv, supplier, items });
-    } catch (err: any) {
-      setToast({ message: err.message || 'Failed to load invoice details', type: 'error' });
+    } catch (err: unknown) {
+      setToast({ message: err instanceof Error ? err.message : 'Failed to load invoice details', type: 'error' });
     }
   };
 

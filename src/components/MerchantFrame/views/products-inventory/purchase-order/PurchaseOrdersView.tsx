@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
 import { StockQuickLinks } from '../stocks/StockQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
-import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, getDensityPadding, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, TablePaginationFooter, NoColumnsEmptyState, TableEmptyState, type TableDensity } from '../../../../shared/TableOptionsMenu';
+import { getDensityPadding } from '../../../../shared/tableOptionsHelpers';
 
 interface Supplier {
   id: number;
@@ -73,7 +73,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
-  const [locations, setLocations] = useState<any[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string; isActive?: boolean }[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,7 +131,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
   }, [mode]);
 
   // Cargar datos
-  const fetchPurchaseOrders = async (silent = false) => {
+  const fetchPurchaseOrders = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
@@ -145,7 +145,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       if (res.status === 401) {
         clearAuthSession();
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 
@@ -156,13 +156,13 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       const json = await res.json();
       const data = json.data || json || [];
       setPurchaseOrders(Array.isArray(data) ? data : []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       if (!silent) setError('Failed to load purchase orders. Please verify your backend server connection.');
     } finally {
       if (!silent) setIsLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   const handleOpenDeleteConfirm = (po: PurchaseOrder) => {
     setSelectedOrderForDelete(po);
@@ -197,15 +197,16 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       setPurchaseOrders(prev => prev.filter(p => p.id !== selectedOrderForDelete.id));
       setIsDeleteModalOpen(false);
       setSelectedOrderForDelete(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setDeleteError(err.message || 'Error deleting purchase order.');
+      const message = err instanceof Error ? err.message : 'Error deleting purchase order.';
+      setDeleteError(message);
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const fetchSuppliersAndSupplies = async () => {
+  const fetchSuppliersAndSupplies = useCallback(async () => {
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -232,31 +233,33 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       if (suppliersRes.ok) {
         const json = await suppliersRes.json();
         const data = json.items || json.data || json || [];
-        const activeSuppliers = (Array.isArray(data) ? data : []).filter((s: any) => s.isActive !== false);
+        const activeSuppliers = (Array.isArray(data) ? data : []).filter((s: { isActive?: boolean }) => s.isActive !== false);
         setSuppliers(activeSuppliers);
       }
       if (suppliesRes.ok) {
         const json = await suppliesRes.json();
         const data = json.items || json.data || json || [];
-        const activeSupplies = (Array.isArray(data) ? data : []).filter((s: any) => s.isActive !== false);
+        const activeSupplies = (Array.isArray(data) ? data : []).filter((s: { isActive?: boolean }) => s.isActive !== false);
         setSupplies(activeSupplies);
       }
 
       if (locationsRes.ok) {
         const json = await locationsRes.json();
         const data = json.data || json || [];
-        const activeLocations = (Array.isArray(data) ? data : []).filter((l: any) => l.isActive !== false);
+        const activeLocations = (Array.isArray(data) ? data : []).filter((l: { isActive?: boolean }) => l.isActive !== false);
         setLocations(activeLocations);
       }
     } catch (err) {
       console.error('Error fetching catalog data', err);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
-    fetchPurchaseOrders();
-    fetchSuppliersAndSupplies();
-  }, []);
+    void Promise.resolve().then(() => {
+      fetchPurchaseOrders();
+      fetchSuppliersAndSupplies();
+    });
+  }, [fetchPurchaseOrders, fetchSuppliersAndSupplies]);
 
   // ── Supplies grid handlers ──────────────────────────────────────────
 
@@ -460,9 +463,10 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       setEditingOrderId(null);
       setMode('list');
       fetchPurchaseOrders(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Error saving the purchase order');
+      const message = err instanceof Error ? err.message : 'Error saving the purchase order';
+      alert(message);
     }
   };
 
@@ -488,7 +492,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         // Inicializar cantidades recibidas de cada item
         const initialQtys: Record<number, number> = {};
         if (orderData.purchaseOrderItems) {
-          orderData.purchaseOrderItems.forEach((item: any) => {
+          orderData.purchaseOrderItems.forEach((item: { id: number; receivedQuantity?: number }) => {
             initialQtys[item.id] = item.receivedQuantity || 0;
           });
         }
@@ -523,9 +527,12 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         selectedOrderForInspect.purchaseOrderItems.forEach(item => {
           if (item.id) {
             const oldRec = Number(item.receivedQuantity) || 0;
-            const newRec = Number(receivedQuantities[item.id] ?? oldRec);
+            const totalOrdered = Number(item.quantityOrdered ?? item.quantity) || 0;
+            const newRec = (inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED')
+              ? totalOrdered
+              : Number(receivedQuantities[item.id] ?? oldRec);
             const delta = newRec - oldRec;
-            if (delta > 0) {
+            if (delta !== 0) {
               receiveItemsPayload.push({
                 id: item.id,
                 receivedQuantity: delta
@@ -567,9 +574,10 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       setIsDetailDrawerOpen(false);
       fetchPurchaseOrders(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || 'Error updating order fulfillment');
+      const message = err instanceof Error ? err.message : 'Error updating order fulfillment';
+      alert(message);
     }
   };
 
@@ -626,7 +634,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       // For raw materials use quantityOrdered; fallback to quantity for compatibility
       const requested = Number(item.quantityOrdered ?? item.quantity) || 0;
       const price = Number(item.unitCost ?? item.unitPrice) || 0;
-      let received = 0;
+      let received: number;
       if (inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') {
         received = requested;
       } else if (inspectorStatus === 'PARTIALLY_RECEIVED') {
@@ -849,10 +857,10 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                               </div>
                             ) : (
                               <span className="block text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1.5">
-                                <span>Received: {(inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') ? Number(item.quantityOrdered ?? item.quantity).toFixed(2) : (item.receivedQuantity || 0)} / {Number(item.quantityOrdered ?? item.quantity).toFixed(2)}</span>
-                                {inspectorStatus !== 'COMPLETED' && item.quantity - (item.receivedQuantity || 0) > 0 && (
+                                <span>Received: {(inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') ? Number(item.quantityOrdered ?? item.quantity).toFixed(2) : Number(item.receivedQuantity || 0).toFixed(2)} / {Number(item.quantityOrdered ?? item.quantity).toFixed(2)}</span>
+                                {inspectorStatus !== 'COMPLETED' && inspectorStatus !== 'RECEIVED' && Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0) > 0 && (
                                   <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 font-bold rounded">
-                                    {item.quantity - (item.receivedQuantity || 0)} pending
+                                    {(Number(item.quantityOrdered ?? item.quantity) - (item.receivedQuantity || 0)).toFixed(2)} pending
                                   </span>
                                 )}
                               </span>

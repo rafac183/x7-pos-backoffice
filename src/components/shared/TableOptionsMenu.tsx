@@ -456,7 +456,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
                         <button
                           key={d.key}
                           type="button"
-                          onClick={() => onChangeDensity(d.key as any)}
+                          onClick={() => onChangeDensity(d.key as TableDensity)}
                           className={`py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
                             rowDensity === d.key
                               ? 'bg-white text-[#ae001a] shadow-xs'
@@ -481,7 +481,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
                         <button
                           key={limit}
                           type="button"
-                          onClick={() => onChangePageSize(limit)}
+                          onClick={() => handlePageSizeChange(limit)}
                           className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
                             pageSize === limit
                               ? 'bg-[#ae001a] text-white border-[#ae001a]'
@@ -493,7 +493,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
                       ))}
                       <button
                         type="button"
-                        onClick={() => onChangePageSize(9999)}
+                        onClick={() => handlePageSizeChange(9999)}
                         className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
                           !pageSize || pageSize >= 9999
                             ? 'bg-[#ae001a] text-white border-[#ae001a]'
@@ -630,45 +630,3 @@ export const TablePaginationFooter: React.FC<TablePaginationFooterProps> = ({
     </div>
   );
 };
-
-export const getDensityPadding = (rowDensity: TableDensity = 'comfortable'): string => {
-  switch (rowDensity) {
-    case 'compact':
-      return 'py-2 px-3';
-    case 'spacious':
-      return 'py-5 px-6';
-    case 'comfortable':
-    default:
-      return 'py-3.5 px-4';
-  }
-};
-
-export function useTablePagination<T>(items: T[], initialPageSize: number = DEFAULT_PAGE_SIZE) {
-  const [pageSize, setPageSize] = useState<number>(initialPageSize);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-
-  const totalItems = items.length;
-  const totalPages = pageSize >= 9999 || pageSize === 0 ? 1 : Math.max(1, Math.ceil(totalItems / pageSize));
-
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
-    }
-  }, [totalPages, currentPage]);
-
-  const paginatedItems = React.useMemo(() => {
-    if (!pageSize || pageSize >= 9999) return items;
-    const start = (currentPage - 1) * pageSize;
-    return items.slice(start, start + pageSize);
-  }, [items, currentPage, pageSize]);
-
-  return {
-    currentPage,
-    setCurrentPage,
-    pageSize,
-    setPageSize,
-    totalPages,
-    totalItems,
-    paginatedItems,
-  };
-}

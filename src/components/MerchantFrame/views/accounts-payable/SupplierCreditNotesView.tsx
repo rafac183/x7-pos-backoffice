@@ -548,8 +548,10 @@ export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = (
   };
 
   useEffect(() => {
-    fetchCreditNotes();
-    fetchSuppliers();
+    void Promise.resolve().then(() => {
+      fetchCreditNotes();
+      fetchSuppliers();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId]);
 
@@ -599,9 +601,9 @@ export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = (
       setCreditNotes((prev) => [json.data, ...prev]);
       setFormDrawer(null);
       setToast({ message: 'Credit note issued successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to issue credit note', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to issue credit note', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -621,9 +623,9 @@ export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = (
       setCreditNotes((prev) => prev.map((cn) => (cn.id === json.data.id ? json.data : cn)));
       setFormDrawer(null);
       setToast({ message: 'Credit note updated successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to update credit note', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to update credit note', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -657,9 +659,9 @@ export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = (
       setCreditNotes((prev) => prev.filter((cn) => cn.id !== deletingNote.id));
       setDeletingNote(null);
       setToast({ message: 'Credit note deleted successfully', type: 'success' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setDeletingNote(null);
-      setToast({ message: err.message || 'Failed to delete credit note', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to delete credit note', type: 'error' });
     } finally {
       setDeleteSubmitting(false);
     }

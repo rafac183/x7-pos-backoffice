@@ -12,23 +12,46 @@ export const SalesMetricCard: React.FC<SalesMetricCardProps> = ({ refreshTrigger
   const [error, setError] = useState<string | null>(null);
   const [hoveredBar, setHoveredBar] = useState<{ hour: string; sales: number } | null>(null);
 
-  const fetchSales = async () => {
+  const [prevTrigger, setPrevTrigger] = useState(refreshTrigger);
+  const [retryCount, setRetryCount] = useState(0);
+
+  if (refreshTrigger !== prevTrigger) {
+    setPrevTrigger(refreshTrigger);
     setLoading(true);
     setError(null);
-    try {
-      const data = await restaurantService.getDailySales();
-      setSalesData(data);
-    } catch (err) {
-      setError('Error fetching daily sales');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  }
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    setRetryCount(c => c + 1);
   };
 
   useEffect(() => {
-    fetchSales();
-  }, [refreshTrigger]);
+    let ignore = false;
+    restaurantService.getDailySales()
+      .then(data => {
+        if (!ignore) {
+          setSalesData(data);
+          setError(null);
+        }
+      })
+      .catch(err => {
+        if (!ignore) {
+          setError('Error fetching daily sales');
+          console.error(err);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [refreshTrigger, retryCount]);
 
   if (loading) {
     return (
@@ -54,7 +77,7 @@ export const SalesMetricCard: React.FC<SalesMetricCardProps> = ({ refreshTrigger
           </p>
         </div>
         <button
-          onClick={fetchSales}
+          onClick={handleRetry}
           className="self-start text-[11px] font-bold text-[#d51f2c] uppercase hover:underline flex items-center gap-1 mt-4"
         >
           <span className="material-symbols-outlined text-xs">refresh</span> Retry

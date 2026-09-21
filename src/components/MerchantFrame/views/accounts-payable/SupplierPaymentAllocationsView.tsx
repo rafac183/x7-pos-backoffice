@@ -124,11 +124,15 @@ const AllocationFormDrawer: React.FC<AllocationFormDrawerProps> = ({
   // Pending supplier documents: allocation destination.
   useEffect(() => {
     if (!supplierId) {
-      setOutstanding([]);
+      void Promise.resolve().then(() => {
+        setOutstanding([]);
+      });
       return;
     }
     let cancelled = false;
-    setLoadingInvoices(true);
+    void Promise.resolve().then(() => {
+      setLoadingInvoices(true);
+    });
     fetch(`${API_BASE}/supplier-invoices?supplier_id=${supplierId}&limit=100`, {
       headers: authHeaders(),
     })
@@ -691,8 +695,10 @@ export const SupplierPaymentAllocationsView: React.FC<SupplierPaymentAllocations
   };
 
   useEffect(() => {
-    fetchAllocations();
-    fetchSources();
+    void Promise.resolve().then(() => {
+      fetchAllocations();
+      fetchSources();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId, payment?.id, creditNote?.id]);
 

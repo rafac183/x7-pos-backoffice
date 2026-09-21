@@ -522,9 +522,11 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
   };
 
   useEffect(() => {
-    fetchItems();
-    fetchInvoices();
-    fetchProducts();
+    void Promise.resolve().then(() => {
+      fetchItems();
+      fetchInvoices();
+      fetchProducts();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCompanyId]);
 
@@ -630,9 +632,9 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
       setFormDrawer(null);
       setToast({ message: 'Line item added successfully', type: 'success' });
       await refreshParentInvoice(dto.invoice_id);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to add line item', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to add line item', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -653,9 +655,9 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
       setFormDrawer(null);
       setToast({ message: 'Line item updated successfully', type: 'success' });
       await refreshParentInvoice(item.invoice_id);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFormDrawer(null);
-      setToast({ message: err.message || 'Failed to update line item', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to update line item', type: 'error' });
     } finally {
       setFormSubmitting(false);
     }
@@ -679,9 +681,9 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
       setDeletingItem(null);
       setToast({ message: 'Line item deleted successfully', type: 'success' });
       await refreshParentInvoice(parentId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setDeletingItem(null);
-      setToast({ message: err.message || 'Failed to delete line item', type: 'error' });
+      setToast({ message: err instanceof Error ? err.message : 'Failed to delete line item', type: 'error' });
     } finally {
       setDeleteSubmitting(false);
     }

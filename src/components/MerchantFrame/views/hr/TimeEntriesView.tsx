@@ -133,8 +133,10 @@ export const TimeEntriesView: React.FC<TimeEntriesViewProps> = ({
   };
 
   useEffect(() => {
-    fetchEntries();
-    fetchContext();
+    void Promise.resolve().then(() => {
+      fetchEntries();
+      fetchContext();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

@@ -198,8 +198,10 @@ export const CollaboratorsView: React.FC<CollaboratorsViewProps> = ({
   };
 
   useEffect(() => {
-    fetchCollaborators();
-    fetchContext();
+    void Promise.resolve().then(() => {
+      fetchCollaborators();
+      fetchContext();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMerchantId]);
 

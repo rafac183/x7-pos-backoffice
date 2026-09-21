@@ -136,6 +136,91 @@ const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
   },
 };
 
+interface NavigationLocationState {
+  activeTab?: string;
+  activeCategory?: string;
+  merchantId?: string | number;
+}
+
+const getNavFromPath = (
+  path: string,
+  locationState?: NavigationLocationState | null,
+  profileRole?: string
+): { category: string; tab: string } | null => {
+  if (path === '/legal/privacy-policy') {
+    return { category: 'legal', tab: 'privacy-policy' };
+  } else if (path === '/legal/terms-of-service') {
+    return { category: 'legal', tab: 'terms-of-service' };
+  } else if (path === '/support/help-center') {
+    return { category: 'support', tab: 'help-center' };
+  } else if (path === '/dashboard/products') {
+    return { category: 'inventory', tab: 'products' };
+  } else if (path === '/dashboard/categories') {
+    return { category: 'inventory', tab: 'categories' };
+  } else if (path === '/dashboard/merchants') {
+    return { category: 'platformsaas', tab: 'merchant-directory' };
+  } else if (path === '/dashboard/users') {
+    return { category: 'platformsaas', tab: 'user-management' };
+  } else if (path === '/dashboard/company-profile') {
+    return { category: 'platformsaas', tab: 'company-profile' };
+  } else if (path === '/dashboard/company-configurations') {
+    return { category: 'platformsaas', tab: 'company-configurations' };
+  } else if (path === '/staff-management/schedule/roster') {
+    return { category: 'restaurant-operations', tab: 'staff-roster' };
+  } else if (path === '/staff-management/schedule/assignments') {
+    return { category: 'restaurant-operations', tab: 'shift-assignment' };
+  } else if (path === '/staff-management/schedule/daily' || path === '/staff-management/schedule/timeline') {
+    return { category: 'restaurant-operations', tab: 'daily-timeline' };
+  } else if (path === '/staff-management/schedule/shifts' || path === '/staff-management/schedule/scheduler') {
+    return { category: 'restaurant-operations', tab: 'shifts' };
+  } else if (path === '/staff-management/schedule/swaps') {
+    return { category: 'restaurant-operations', tab: 'staff-swaps' };
+  } else if (path === '/staff-management/schedule/marketplace' || path === '/staff-management/schedule/open-shifts') {
+    return { category: 'restaurant-operations', tab: 'open-shifts' };
+  } else if (path === '/staff-management/schedule/labor-forecasting' || path === '/staff-management/schedule/forecasting') {
+    return { category: 'restaurant-operations', tab: 'labor-forecasting' };
+  } else if (path === '/staff-management/attendance/ledger') {
+    return { category: 'restaurant-operations', tab: 'collaborators-time-entries' };
+  } else if (path === '/staff-management/schedule/me') {
+    return { category: 'restaurant-operations', tab: 'my-schedule' };
+  } else if (path === '/staff-management/attendance/kiosk') {
+    return { category: 'restaurant-operations', tab: 'time-clock-kiosk' };
+  } else if (path.startsWith('/reservations/')) {
+    return { category: 'restaurant-operations', tab: featureIdForReservationPath(path) };
+  } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
+    return { category: 'restaurant-operations', tab: 'tips-ledger' };
+  } else if (path === '/store-operations/tips-allocations' || path === '/tips/allocations') {
+    return { category: 'restaurant-operations', tab: 'tips-allocations' };
+  } else if (path === '/store-operations/tips-pools' || path === '/store-operations/tip-pools' || path === '/tips/pools') {
+    return { category: 'restaurant-operations', tab: 'tips-pools' };
+  } else if (path === '/store-operations/tips-pool-members' || path === '/store-operations/tip-pool-members' || path === '/tips/pool-members') {
+    return { category: 'restaurant-operations', tab: 'tips-pool-members' };
+  } else if (path === '/tips/cash-movements' || path === '/store-operations/cash-movements') {
+    return { category: 'restaurant-operations', tab: 'cash-movements' };
+  } else if (path === '/dashboard/raw-materials' || path === '/inventory/raw-materials') {
+    return { category: 'inventory', tab: 'raw-materials' };
+  } else if (path === '/dashboard/raw-material-categories') {
+    return { category: 'inventory', tab: 'raw-material-categories' };
+  } else if (path === '/dashboard/recipes' || path === '/inventory/recipes') {
+    return { category: 'inventory', tab: 'recipes' };
+  } else if (path === '/inventory/stocks') {
+    return { category: 'inventory', tab: 'stock-movements' };
+  } else if (path === '/inventory/movements') {
+    return { category: 'inventory', tab: 'movements' };
+  } else if (path === '/dashboard') {
+    const stateTab = locationState?.activeTab;
+    const stateCategory = locationState?.activeCategory;
+    if (stateTab && stateCategory) {
+      return { category: stateCategory, tab: stateTab };
+    }
+    if (profileRole === 'SaaS Owner') {
+      return { category: 'saas', tab: 'saas-dashboard' };
+    }
+    return { category: 'core', tab: 'dashboard' };
+  }
+  return null;
+};
+
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -148,8 +233,8 @@ export const MerchantFrame: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   // SPA navigation states
-  const [activeCategory, setActiveCategory] = useState<string>('saas'); // Active category
-  const [activeTab, setActiveTab] = useState<string>('saas-dashboard'); // Active sub-item or view
+  const [activeCategory, setActiveCategory] = useState<string>('core'); // Active category
+  const [activeTab, setActiveTab] = useState<string>('dashboard'); // Active sub-item or view
   const [linesEntryFilter, setLinesEntryFilter] = useState<JournalEntry | null>(null);
   // Parent context when jumping from a payment voucher to its line item breakdown.
   const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
@@ -176,123 +261,28 @@ export const MerchantFrame: React.FC = () => {
     setActiveTab(SAAS_VIEW_TAB_MAP[view] ?? view);
   };
 
-  // Synchronize physical browser URL path with SPA internal navigation state
+  // Synchronize physical browser URL path with SPA internal navigation state during render phase
+  const [prevRouteKey, setPrevRouteKey] = useState<string>('');
+  const currentRouteKey = `${location.pathname}:${location.search}:${profile?.role ?? ''}:${location.state?.activeTab ?? ''}:${location.state?.activeCategory ?? ''}`;
+
+  if (currentRouteKey !== prevRouteKey) {
+    setPrevRouteKey(currentRouteKey);
+    const routeNav = getNavFromPath(location.pathname, location.state, profile?.role);
+    if (routeNav) {
+      setActiveCategory(routeNav.category);
+      setActiveTab(routeNav.tab);
+    }
+  }
+
+  // Handle external side effects (sessionStorage) on route change
   useEffect(() => {
-    const path = location.pathname;
-    if (path === '/legal/privacy-policy') {
-      setActiveCategory('legal');
-      setActiveTab('privacy-policy');
-    } else if (path === '/legal/terms-of-service') {
-      setActiveCategory('legal');
-      setActiveTab('terms-of-service');
-    } else if (path === '/support/help-center') {
-      setActiveCategory('support');
-      setActiveTab('help-center');
-    } else if (path === '/dashboard/products') {
-      setActiveCategory('inventory');
-      setActiveTab('products');
-    } else if (path === '/dashboard/categories') {
-      setActiveCategory('inventory');
-      setActiveTab('categories');
-    } else if (path === '/dashboard/merchants') {
-      setActiveCategory('platformsaas');
-      setActiveTab('merchant-directory');
-    } else if (path === '/dashboard/users') {
-      setActiveCategory('platformsaas');
-      setActiveTab('user-management');
-    } else if (path === '/dashboard/company-profile') {
-      setActiveCategory('platformsaas');
-      setActiveTab('company-profile');
-    } else if (path === '/dashboard/company-configurations') {
-      setActiveCategory('platformsaas');
-      setActiveTab('company-configurations');
-    } else if (path === '/staff-management/schedule/roster') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('staff-roster');
-    } else if (path === '/staff-management/schedule/assignments') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('shift-assignment');
-    } else if (path === '/staff-management/schedule/daily' || path === '/staff-management/schedule/timeline') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('daily-timeline');
-    } else if (path === '/staff-management/schedule/shifts' || path === '/staff-management/schedule/scheduler') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('shifts');
-    } else if (path === '/staff-management/schedule/swaps') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('staff-swaps');
-    } else if (path === '/staff-management/schedule/marketplace' || path === '/staff-management/schedule/open-shifts') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('open-shifts');
-    } else if (path === '/staff-management/schedule/labor-forecasting' || path === '/staff-management/schedule/forecasting') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('labor-forecasting');
-    } else if (path === '/staff-management/attendance/ledger') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('collaborators-time-entries');
-    } else if (path === '/staff-management/schedule/me') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('my-schedule');
-    } else if (path === '/staff-management/attendance/kiosk') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('time-clock-kiosk');
-    } else if (path.startsWith('/reservations/')) {
-      // Public URLs for the Reservations epic map 1:1 to featureIds in Features.txt.
-      setActiveCategory('restaurant-operations');
-      setActiveTab(featureIdForReservationPath(path));
-    } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-ledger');
-    } else if (path === '/store-operations/tips-allocations' || path === '/tips/allocations') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-allocations');
-    } else if (path === '/store-operations/tips-pools' || path === '/store-operations/tip-pools' || path === '/tips/pools') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-pools');
-    } else if (path === '/store-operations/tips-pool-members' || path === '/store-operations/tip-pool-members' || path === '/tips/pool-members') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('tips-pool-members');
-    } else if (path === '/tips/cash-movements' || path === '/store-operations/cash-movements') {
-      setActiveCategory('restaurant-operations');
-      setActiveTab('cash-movements');
-    } else if (path === '/dashboard/raw-materials' || path === '/inventory/raw-materials') {
-      setActiveCategory('inventory');
-      setActiveTab('raw-materials');
-    } else if (path === '/dashboard/raw-material-categories') {
-      setActiveCategory('inventory');
-      setActiveTab('raw-material-categories');
-    } else if (path === '/dashboard/recipes' || path === '/inventory/recipes') {
-      setActiveCategory('inventory');
-      setActiveTab('recipes');
-    } else if (path === '/inventory/stocks') {
-      setActiveCategory('inventory');
-      setActiveTab('stock-movements');
-    } else if (path === '/inventory/movements') {
-      setActiveCategory('inventory');
-      setActiveTab('movements');
-    } else if (path === '/dashboard') {
-      const stateTab = location.state?.activeTab;
-      const stateCategory = location.state?.activeCategory;
+    if (location.pathname === '/dashboard') {
       const stateMerchantId = location.state?.merchantId;
       if (stateMerchantId != null) {
         sessionStorage.setItem('x7:branch-context', String(stateMerchantId));
       }
-      if (stateTab && stateCategory) {
-        setActiveCategory(stateCategory);
-        setActiveTab(stateTab);
-      } else {
-        if (profile) {
-          if (profile.role === 'SaaS Owner') {
-            setActiveCategory('saas');
-            setActiveTab('saas-dashboard');
-          } else {
-            setActiveCategory('core');
-            setActiveTab('dashboard');
-          }
-        }
-      }
     }
-  }, [location.pathname, profile?.role]);
+  }, [location.pathname, location.state]);
   const [showKitchenKDS, setShowKitchenKDS] = useState<boolean>(false);
 
   // Dynamic Navigation by Plan and Permissions
@@ -331,19 +321,23 @@ export const MerchantFrame: React.FC = () => {
       .filter((cat): cat is NavCategory => cat !== null);
   }, [navCategories, sidebarSearchQuery]);
 
-  const loadNavigation = async (userProfile: UserProfile) => {
-    try {
-      const menu = await navigationService.loadAndParseNavigation(userProfile.Plan_id, userProfile.role);
-      setNavCategories(menu);
-    } catch (err) {
-      console.error('Error loading dynamic menu', err);
-    }
-  };
-
   useEffect(() => {
+    let ignore = false;
     if (profile) {
-      loadNavigation(profile);
+      navigationService
+        .loadAndParseNavigation(profile.Plan_id, profile.role)
+        .then((menu) => {
+          if (!ignore) {
+            setNavCategories(menu);
+          }
+        })
+        .catch((err) => {
+          console.error('Error loading dynamic menu', err);
+        });
     }
+    return () => {
+      ignore = true;
+    };
   }, [profile, refreshTrigger]);
 
   // Sidebar categories and applications remain closed/collapsed by default on login
@@ -366,67 +360,54 @@ export const MerchantFrame: React.FC = () => {
   const [isQuickOrderOpen, setIsQuickOrderOpen] = useState<boolean>(false);
 
   // 1. Session initialization and check (AC 1.1 and 1.2)
-  const hydrateSession = async () => {
-    try {
-      setIsAuthLocked(false);
-      setAuthenticatedState(true);
-      const userProfile = await restaurantService.getUserProfile();
-      setProfile(userProfile);
-      await restaurantService.getEstablishmentTier();
+  useEffect(() => {
+    let ignore = false;
 
-      // Auto-initialize views according to role
-      if (userProfile.role === 'SaaS Owner') {
-        setActiveTab('saas-dashboard');
-      } else {
-        const isSaaSTab = [
-          'saas-dashboard',
-          'subscription',
-          'companies',
-          'merchants',
-          'users',
-          'reports',
-        ].includes(activeTab);
-
-        // This redirect prevents merchant users from being left on a SaaS portal tab
-        // (the initial activeTab state is 'saas-dashboard'). However, hydrating the session
-        // is ASYNCHRONOUS and completes AFTER the effect that parses the URL into a tab,
-        // so redirecting blindly trampled deep links: navigating to /reservations/list,
-        // /staff-management/..., or /inventory/... always ended up on the home dashboard.
-        // A route other than /dashboard is an explicit user destination and overrides the bounce.
-        const isExplicitDeepLink = location.pathname !== '/dashboard';
-
-        if ((activeCategory === 'saas' || isSaaSTab) && !isExplicitDeepLink) {
-          setActiveCategory('core');
-          setActiveTab('dashboard');
+    async function initSession() {
+      try {
+        setAuthenticatedState(true);
+        const userProfile = await restaurantService.getUserProfile();
+        if (ignore) return;
+        setIsAuthLocked(false);
+        setProfile(userProfile);
+        await restaurantService.getEstablishmentTier();
+      } catch (err: unknown) {
+        if (ignore) return;
+        if (typeof err === 'object' && err !== null && 'status' in err && (err as { status?: number }).status === 401) {
+          setIsAuthLocked(true); // AC 1.3: Session lock
+        } else {
+          console.error('Error during session hydration', err);
         }
       }
-    } catch (err: any) {
-      if (err.status === 401) {
-        setIsAuthLocked(true); // AC 1.3: Session lock
-      } else {
-        console.error('Error during session hydration', err);
-      }
     }
-  };
 
-  useEffect(() => {
-    hydrateSession();
+    initSession();
+
+    return () => {
+      ignore = true;
+    };
   }, [refreshTrigger]);
 
   // Cargar notificaciones (AC 5.1)
-  const fetchNotifications = async () => {
-    try {
-      const data = await restaurantService.getNotifications();
-      setNotifications(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   useEffect(() => {
+    let ignore = false;
+
     if (!isAuthLocked) {
-      fetchNotifications();
+      restaurantService
+        .getNotifications()
+        .then((data) => {
+          if (!ignore) {
+            setNotifications(data);
+          }
+        })
+        .catch((err) => {
+          console.error('Error loading notifications', err);
+        });
     }
+
+    return () => {
+      ignore = true;
+    };
   }, [isAuthLocked, refreshTrigger]);
 
   useEffect(() => {
@@ -475,7 +456,7 @@ export const MerchantFrame: React.FC = () => {
       rootEl?.classList.remove('restaurant-active', 'saas-active');
       bodyEl?.classList.remove('restaurant-active', 'saas-active');
     };
-  }, [activeTab]);
+  }, [activeTab, activeCategory, profile?.role]);
 
   const handleToggleApiFailure = () => {
     const newState = !apiFailedToggle;
@@ -654,37 +635,45 @@ export const MerchantFrame: React.FC = () => {
       return <CashDrawerHistoryView onNavigate={(view) => setActiveTab(view)} />;
     }
 
+    const safeNavigate = (path: string) => {
+      try {
+        navigate(path);
+      } catch {
+        // Router navigation suppressed if context not available
+      }
+    };
+
     const handleStaffNavigate = (target: string) => {
       if (target === '/staff-management/schedule/me' || target === 'my-schedule' || target === 'personal-schedule') {
         setActiveTab('my-schedule');
-        try { navigate('/staff-management/schedule/me'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/me');
       } else if (target === '/staff-management/schedule/roster' || target === 'staff-roster' || target === 'roster') {
         setActiveTab('staff-roster');
-        try { navigate('/staff-management/schedule/roster'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/roster');
       } else if (target === '/staff-management/schedule/assignments' || target === 'shift-assignment' || target === 'assignments') {
         setActiveTab('shift-assignment');
-        try { navigate('/staff-management/schedule/assignments'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/assignments');
       } else if (target === '/staff-management/schedule/daily' || target === '/staff-management/schedule/timeline' || target === 'daily-timeline' || target === 'daily') {
         setActiveTab('daily-timeline');
-        try { navigate('/staff-management/schedule/daily'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/daily');
       } else if (target === '/staff-management/schedule/shifts' || target === '/staff-management/schedule/scheduler' || target === 'shifts' || target === 'scheduler') {
         setActiveTab('shifts');
-        try { navigate('/staff-management/schedule/shifts'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/shifts');
       } else if (target === '/staff-management/schedule/swaps' || target === 'staff-swaps' || target === 'swaps') {
         setActiveTab('staff-swaps');
-        try { navigate('/staff-management/schedule/swaps'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/swaps');
       } else if (target === '/staff-management/schedule/marketplace' || target === '/staff-management/schedule/open-shifts' || target === 'open-shifts' || target === 'marketplace') {
         setActiveTab('open-shifts');
-        try { navigate('/staff-management/schedule/marketplace'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/marketplace');
       } else if (target === '/staff-management/schedule/labor-forecasting' || target === 'labor-forecasting' || target === 'forecasting') {
         setActiveTab('labor-forecasting');
-        try { navigate('/staff-management/schedule/labor-forecasting'); } catch (e) {}
+        safeNavigate('/staff-management/schedule/labor-forecasting');
       } else if (target === '/staff-management/attendance/ledger' || target === 'collaborators-time-entries' || target === 'time-entries' || target === 'ledger') {
         setActiveTab('collaborators-time-entries');
-        try { navigate('/staff-management/attendance/ledger'); } catch (e) {}
+        safeNavigate('/staff-management/attendance/ledger');
       } else if (target === '/staff-management/attendance/kiosk' || target === 'time-clock' || target === 'time-clock-kiosk' || target === 'kiosk') {
         setActiveTab('time-clock-kiosk');
-        try { navigate('/staff-management/attendance/kiosk'); } catch (e) {}
+        safeNavigate('/staff-management/attendance/kiosk');
       } else if (
         target === '/store-operations/tips-ledger' ||
         target === '/tips/ledger' ||
@@ -693,7 +682,7 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-ledger');
-        try { navigate('/store-operations/tips-ledger'); } catch (e) {}
+        safeNavigate('/store-operations/tips-ledger');
       } else if (
         target === '/store-operations/tips-allocations' ||
         target === '/tips/allocations' ||
@@ -702,7 +691,7 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-allocations');
-        try { navigate('/tips/allocations'); } catch (e) {}
+        safeNavigate('/tips/allocations');
       } else if (
         target === '/tips/pools' ||
         target === 'tips-pools' ||
@@ -711,7 +700,7 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-pools');
-        try { navigate('/tips/pools'); } catch (e) {}
+        safeNavigate('/tips/pools');
       } else if (
         target === '/tips/pool-members' ||
         target === 'tips-pool-members' ||
@@ -721,11 +710,11 @@ export const MerchantFrame: React.FC = () => {
       ) {
         setActiveCategory('restaurant-operations');
         setActiveTab('tips-pool-members');
-        try { navigate('/tips/pool-members'); } catch (e) {}
+        safeNavigate('/tips/pool-members');
       } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-movements') {
         setActiveCategory('restaurant-operations');
         setActiveTab('cash-movements');
-        try { navigate('/tips/cash-movements'); } catch (e) {}
+        safeNavigate('/tips/cash-movements');
       } else {
         setActiveTab(target);
       }
