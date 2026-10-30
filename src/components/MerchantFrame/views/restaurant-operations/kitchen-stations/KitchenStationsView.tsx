@@ -72,7 +72,6 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // States for Customizing Columns, Density, and Pagination in Table
   const [visibleColumns, setVisibleColumns] = useState<{
@@ -195,6 +194,8 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
         displayMode: (st.displayMode ?? st.display_mode ?? 'AUTO') as KitchenDisplayMode,
         display_order: Number(st.displayOrder ?? st.display_order ?? 1),
         displayOrder: Number(st.displayOrder ?? st.display_order ?? 1),
+        station_number: Number(st.stationNumber ?? st.station_number ?? st.displayOrder ?? st.display_order ?? st.id),
+        stationNumber: Number(st.stationNumber ?? st.station_number ?? st.displayOrder ?? st.display_order ?? st.id),
         printer_name: (st.printerName ?? st.printer_name ?? null) as string | null,
         printerName: (st.printerName ?? st.printer_name ?? null) as string | null,
         created_at: String(st.createdAt ?? st.created_at ?? new Date().toISOString()),
@@ -204,7 +205,6 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
         status: (st.status ?? 'active') as KitchenStationStatus,
       }));
       setStations(dataList);
-      setLastUpdated(new Date());
     } catch (err) {
       console.warn('API error fetching kitchen stations:', err);
       setError('Failed to fetch kitchen stations from backend API.');
@@ -578,10 +578,10 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       {/* 2. Canonical Unified Filter Toolbar */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
         {/* Row 1: Search on left, Display Mode selector, View Switcher + Reload on right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
                 search
               </span>
@@ -605,7 +605,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
             </div>
 
             {/* Display Mode Dropdown Selector */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
               <span className="material-symbols-outlined text-base">desktop_windows</span>
               <select
                 value={displayModeFilter}
@@ -677,12 +677,6 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>
@@ -1029,18 +1023,28 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
+                  <colgroup>
+                    {visibleColumns.refDate && <col style={{ width: '98px' }} />}
+                    {visibleColumns.nameSequence && <col style={{ width: '180px' }} />}
+                    {visibleColumns.stationType && <col style={{ width: '128px' }} />}
+                    {visibleColumns.displayMode && <col style={{ width: '138px' }} />}
+                    {visibleColumns.printer && <col style={{ width: '150px' }} />}
+                    {visibleColumns.activeRouting && <col style={{ width: '78px' }} />}
+                    {visibleColumns.status && <col style={{ width: '78px' }} />}
+                    {visibleColumns.actions && <col style={{ width: '72px' }} />}
+                  </colgroup>
                   <thead>
                     <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
-                      {visibleColumns.refDate && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-26 min-w-[110px]`}>Station Ref & Date</th>}
-                      {visibleColumns.nameSequence && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-auto min-w-[180px]`}>Station Name & Sequence</th>}
-                      {visibleColumns.stationType && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Station Type Role</th>}
-                      {visibleColumns.displayMode && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[100px]`}>KDS Display Mode</th>}
-                      {visibleColumns.printer && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-40 min-w-[120px]`}>Hardware Printer Binding</th>}
-                      {visibleColumns.activeRouting && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Active Routing</th>}
-                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Lifecycle Status</th>}
-                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} text-right text-[#5f5e5e] w-28 min-w-[90px]`}>Actions</th>}
+                      {visibleColumns.refDate && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Ref & Date</th>}
+                      {visibleColumns.nameSequence && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Name & Sequence</th>}
+                      {visibleColumns.stationType && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Type Role</th>}
+                      {visibleColumns.displayMode && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>KDS Display Mode</th>}
+                      {visibleColumns.printer && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Hardware Printer</th>}
+                      {visibleColumns.activeRouting && <th className={`${getDensityPadding(rowDensity)} !px-2 text-center text-[#5f5e5e]`}>Active Routing</th>}
+                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} !px-2 text-center text-[#5f5e5e]`}>Lifecycle Status</th>}
+                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} !px-3 text-right text-[#5f5e5e]`}>Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
@@ -1090,7 +1094,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                       ).map((station) => {
                       const isInactive = !station.is_active;
                       const isDeleted = station.status === 'deleted';
-                      const densityPadding = getDensityPadding(rowDensity);
+                      const densityPadding = `${getDensityPadding(rowDensity)} !px-3`;
                       return (
                         <tr
                           key={station.id}
@@ -1117,7 +1121,8 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                             <td className={densityPadding}>
                               <div className="min-w-0 flex flex-col justify-center">
                                 <span
-                                  className={`font-bold text-sm text-[#1d1c17] truncate ${
+                                  title={station.name}
+                                  className={`font-bold text-[13px] text-[#1d1c17] truncate ${
                                     isInactive ? 'line-through opacity-75' : ''
                                   }`}
                                 >
@@ -1146,13 +1151,15 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
 
                           {/* Printer Hardware Link */}
                           {visibleColumns.printer && (
-                            <td className={`${densityPadding} whitespace-nowrap`}>
+                            <td className={densityPadding}>
                               {station.printer_name ? (
-                                <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-700">
-                                  <span className="material-symbols-outlined text-[16px] text-zinc-500">
+                                <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-700 min-w-0">
+                                  <span className="material-symbols-outlined text-[16px] text-zinc-500 shrink-0">
                                     print
                                   </span>
-                                  {station.printer_name}
+                                  <span className="truncate" title={station.printer_name}>
+                                    {station.printer_name}
+                                  </span>
                                 </div>
                               ) : (
                                 <span className="text-xs italic text-zinc-400">No Printer Assigned</span>

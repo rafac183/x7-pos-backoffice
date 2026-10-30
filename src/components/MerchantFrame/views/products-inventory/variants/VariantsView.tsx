@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { CatalogQuickLinks } from '../CatalogQuickLinks';
 import { InventoryNavHubBar } from '../InventoryNavHubBar';
@@ -29,11 +29,16 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Filtros locales
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [productFilter, setProductFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All Status');
+
+  // Canonical Unified Toolbar State
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
 
   // Table options state
   const [rowDensity, setRowDensity] = useState<TableDensity>('comfortable');
@@ -74,8 +79,9 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
       topRef.current.scrollIntoView({ behavior: 'instant' });
     }
   }, []);
-  const fetchAllData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchAllData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    setIsRefreshing(true);
     setError(null);
     try {
       const [variantsJson, productsJson] = await Promise.all([
@@ -106,17 +112,37 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
       setProducts(mappedProducts);
     } catch (err: unknown) {
       console.error('Error fetching variants data:', err);
-      setError('Failed to load variants. Please check if the backend is running.');
+      if (!silent) {
+        setError('Failed to load variants. Please check if the backend is running.');
+      }
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
-      fetchAllData();
+      fetchAllData(false);
     });
   }, [fetchAllData]);
+
+  // Periodic Auto Refresh Effect (Silent background sync)
+  useEffect(() => {
+    if (autoRefreshInterval <= 0) return;
+    const timer = setInterval(() => {
+      void fetchAllData(true);
+    }, autoRefreshInterval * 1000);
+    return () => clearInterval(timer);
+  }, [autoRefreshInterval, fetchAllData]);
+
+  // Status Counts for Pill Strip
+  const variantStatusCounts = useMemo(() => {
+    const all = variants.length;
+    const active = variants.filter((v) => v.isActive).length;
+    const inactive = variants.filter((v) => !v.isActive).length;
+    return { all, active, inactive };
+  }, [variants]);
 
   const handleExportCSV = () => {
     if (filteredVariants.length === 0) return;
@@ -136,20 +162,28 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
     navigator.clipboard.writeText(`Variants & Sizes: ${filteredVariants.length} total, ${active} active, ${filteredVariants.length - active} inactive.`);
   };
 
-  const filteredVariants = variants.filter((v) => {
-    const matchesSearch =
-      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.product?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredVariants = useMemo(() => {
+    return variants.filter((v) => {
+      const matchesSearch =
+        v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (v.product?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === 'All' ||
-      statusFilter === 'All Status' ||
-      (statusFilter === 'Active' && v.isActive) ||
-      (statusFilter === 'Inactive' && !v.isActive);
+      const matchesStatus =
+        statusFilter === 'All' ||
+        statusFilter === 'All Status' ||
+        (statusFilter === 'Active' && v.isActive) ||
+        (statusFilter === 'Inactive' && !v.isActive);
 
-    return matchesSearch && matchesStatus;
-  });
+      const matchesProduct =
+        productFilter === 'All' ||
+        productFilter === 'All Products' ||
+        (v.product && String(v.product.id) === productFilter) ||
+        (!v.product && productFilter === 'None');
+
+      return matchesSearch && matchesStatus && matchesProduct;
+    });
+  }, [variants, searchQuery, statusFilter, productFilter]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -304,52 +338,179 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Search Bar and Filters */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
-        {/* Row 1: Full-width search */}
-        <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md transition-all font-sans"
-            placeholder="Search variants by name, SKU or product..."
-          />
-        </div>
+      {/* 2. Canonical Unified Filter Toolbar */}
+      <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+        {/* Row 1: Search and Product selector on left, Auto Refresh on right */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Search variants by name, SKU or product..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] w-full pl-9 pr-8 text-xs rounded-lg border border-[#d5cfc4] focus:outline-none focus:border-[#ae001a] bg-[#fcfcfb] text-[#1d1c17] placeholder:text-[#8c857b] transition-colors duration-200"
+                aria-label="Search variants"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-        {/* Row 2: Filters on the left, Buttons on the right */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Filter by State */}
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary"
-            >
-              <option>All Status</option>
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
+            {/* Product Dropdown Selector */}
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <span className="material-symbols-outlined text-base">inventory_2</span>
+              <select
+                aria-label="Filter by product"
+                value={productFilter}
+                onChange={(e) => {
+                  setProductFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[180px] transition-colors duration-200"
+              >
+                <option value="All">All Products</option>
+                {products.map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical Auto Refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchAllData(false)}
+                disabled={isLoading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Refresh variants now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: STATUS Pills Strip on left, Primary Add Button on right (NO reload button) */}
+        <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#f0ede6] min-w-0">
+          {/* Left: STATUS Pills Strip */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5f5e5e] shrink-0 mr-0.5">
+              Status:
+            </span>
+
+            {/* All Pill */}
             <button
+              type="button"
+              onClick={() => {
+                setStatusFilter('All Status');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'All Status' || statusFilter === 'All'
+                  ? 'bg-[#1d1c17] text-white border-[#1d1c17] shadow-xs'
+                  : 'bg-white text-[#5f5e5e] border-[#d5cfc4] hover:bg-[#fcfcfb] hover:text-[#ae001a]'
+              }`}
+            >
+              <span>All</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'All Status' || statusFilter === 'All' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-[#5f5e5e]'
+                }`}
+              >
+                {variantStatusCounts.all}
+              </span>
+            </button>
+
+            {/* Active Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(statusFilter === 'Active' ? 'All Status' : 'Active');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Active'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">check_circle</span>
+              <span>ACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Active' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {variantStatusCounts.active}
+              </span>
+            </button>
+
+            {/* Inactive Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(statusFilter === 'Inactive' ? 'All Status' : 'Inactive');
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 border ${
+                statusFilter === 'Inactive'
+                  ? 'bg-zinc-700 text-white border-zinc-700 shadow-xs'
+                  : 'bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">block</span>
+              <span>INACTIVE</span>
+              <span
+                className={`text-[8.5px] px-1 py-0 rounded-full font-bold ${
+                  statusFilter === 'Inactive' ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-700'
+                }`}
+              >
+                {variantStatusCounts.inactive}
+              </span>
+            </button>
+          </div>
+
+          {/* Right: Primary Add Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
               onClick={handleOpenAddModal}
-              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+              className="h-[34px] px-4 rounded-lg bg-[#ae001a] text-white font-bold text-xs hover:bg-[#d2272f] transition-colors flex items-center gap-1.5 font-sans cursor-pointer shadow-xs whitespace-nowrap shrink-0"
             >
               <span className="material-symbols-outlined text-[18px]">add</span>
               ADD VARIANT
             </button>
-
           </div>
         </div>
       </div>
@@ -373,7 +534,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
             onExportCSV={handleExportCSV}
             onPrint={handlePrintTable}
             onCopySummary={handleCopySummary}
-            onReload={fetchAllData}
+            onReload={() => void fetchAllData(false)}
             columns={[
               { key: 'name', label: 'Variant Name' },
               { key: 'product', label: 'Associated Product' },
@@ -458,7 +619,7 @@ export const VariantsView: React.FC<VariantsViewProps> = ({ onNavigate }) => {
                     </span>
                     <p className="font-bold">{error}</p>
                     <button
-                      onClick={fetchAllData}
+                      onClick={() => void fetchAllData(false)}
                       className="mt-4 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-all font-sans cursor-pointer"
                     >
                       Retry Connection

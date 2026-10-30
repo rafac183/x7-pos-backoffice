@@ -158,7 +158,6 @@ export const OnlineMenuItemsView: React.FC<OnlineMenuItemsViewProps> = ({ onNavi
   // Auto-refresh state
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -332,7 +331,6 @@ export const OnlineMenuItemsView: React.FC<OnlineMenuItemsViewProps> = ({ onNavi
         }
 
         setMenuItems(mapped);
-        setLastUpdated(new Date());
 
         // Background sync to backend if any duplicate or misaligned displayOrder was healed
         if (itemsToHeal.length > 0) {
@@ -1219,12 +1217,6 @@ export const OnlineMenuItemsView: React.FC<OnlineMenuItemsViewProps> = ({ onNavi
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0 font-sans">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>

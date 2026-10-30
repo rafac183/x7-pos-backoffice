@@ -2825,16 +2825,21 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
               stationName: recalledRecord.stationName || undefined,
               stationId: recalledRecord.stationId || undefined,
               priority: 'normal',
-              items: (recalledRecord.items || []).map((it) => ({
-                id: it.id,
-                name: it.productName,
-                variantName: it.variantName || undefined,
-                qty: it.quantity,
-                preparedQuantity: 0,
-                notes: it.notes || undefined,
-                course: (it.course as CourseType) || 'MAIN_COURSE',
-                preparationStatus: 'IN_PREPARATION',
-              })),
+              items: (recalledRecord.items || []).map((it) => {
+                const inferredCourse = (it.course as CourseType) || 'MAIN_COURSE';
+                const isHeld = inferredCourse === 'MAIN_COURSE' || inferredCourse === 'DESSERT';
+                return {
+                  id: it.id,
+                  name: it.productName,
+                  variantName: it.variantName || undefined,
+                  qty: it.quantity,
+                  preparedQuantity: 0,
+                  notes: it.notes || undefined,
+                  course: inferredCourse,
+                  preparationStatus: isHeld ? ('HELD' as PreparationStatus) : ('PENDING' as PreparationStatus),
+                  holdRemainingSeconds: isHeld ? 600 : undefined,
+                };
+              }),
             };
           }
 
@@ -2843,11 +2848,15 @@ export const KitchenMonitorView: React.FC<KitchenMonitorViewProps> = ({ onBackTo
               ...ticketToRestore,
               id: `KO-${recalledOrderId}`,
               backendOrderId: recalledOrderId,
-              items: ticketToRestore.items.map((it) => ({
-                ...it,
-                preparationStatus: 'IN_PREPARATION',
-                preparedQuantity: 0,
-              })),
+              items: ticketToRestore.items.map((it) => {
+                const isHeld = it.course === 'MAIN_COURSE' || it.course === 'DESSERT';
+                return {
+                  ...it,
+                  preparationStatus: isHeld ? ('HELD' as PreparationStatus) : ('PENDING' as PreparationStatus),
+                  preparedQuantity: 0,
+                  holdRemainingSeconds: isHeld ? 600 : undefined,
+                };
+              }),
             };
 
             setTickets((prev) => {

@@ -151,8 +151,6 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({ onNavigate: 
   // Auto-refresh state
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
-
 
   // 1. Fetch Online Stores (for dropdown filter)
   const fetchStores = useCallback(async () => {
@@ -377,7 +375,6 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({ onNavigate: 
           ? json
           : json.data || [];
         setOrders(list);
-        setLastUpdated(new Date());
 
         // Sync selected order in drawer if open without re-triggering dependency cycle
         setSelectedOrder((prev) => {
@@ -512,6 +509,11 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({ onNavigate: 
     }
 
     showToast(`Order #ONL-${orderId} transitioned to ${nextStatus.replace(/_/g, ' ').toUpperCase()}`);
+    window.dispatchEvent(
+      new CustomEvent('x7_kds_data_reset', {
+        detail: { action: 'fulfillment_change', orderId, nextStatus },
+      }),
+    );
     await fetchOrders(true);
     if (selectedOrder && selectedOrder.id === orderId) {
       const refreshed = await fetch(`${API_BASE}/online-orders/${orderId}`, { headers });
@@ -1460,13 +1462,8 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({ onNavigate: 
             </button>
           </div>
 
-          {/* Right of status bar: Timestamp + Cancelled Archive Button + New Order Button */}
+          {/* Right of status bar: Cancelled Archive Button + New Order Button */}
           <div className="flex items-center gap-2 pl-2 shrink-0 font-sans">
-            <div className="hidden lg:flex items-center gap-1 text-[11px] text-[#5f5e5e] font-poppins">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
-            </div>
 
             {/* Cancelled Orders Modal Button */}
             <button

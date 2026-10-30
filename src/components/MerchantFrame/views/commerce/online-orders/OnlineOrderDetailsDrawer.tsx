@@ -731,19 +731,44 @@ export const OnlineOrderDetailsDrawer: React.FC<OnlineOrderDetailsDrawerProps> =
 
           {(order.fulfillmentStatus === 'ready' ||
             order.fulfillmentStatus === 'ready_for_pickup' ||
-            order.fulfillmentStatus === 'out_for_delivery') &&
+            order.fulfillmentStatus === 'out_for_delivery' ||
+            order.fulfillmentStatus === 'completed') &&
             onTransitionStatus && (
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={() =>
-                  handleAction(() => onTransitionStatus(order.id, 'completed'))
-                }
-                className="h-10 px-5 rounded text-white text-xs font-bold uppercase tracking-wider bg-green-600 hover:bg-green-700 transition-all inline-flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-base">verified</span>
-                {isProcessing ? 'Completing...' : 'COMPLETE ORDER'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={() =>
+                    handleAction(async () => {
+                      await onTransitionStatus(order.id, 'accepted');
+                      window.dispatchEvent(
+                        new CustomEvent('x7_kds_data_reset', {
+                          detail: { action: 'recall', onlineOrderId: order.id },
+                        }),
+                      );
+                    })
+                  }
+                  className="h-10 px-3.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs"
+                  title="Recall order back to Kitchen (resets KDS items to Held/Pending)"
+                >
+                  <span className="material-symbols-outlined text-[17px]">history</span>
+                  <span>RECALL TO KITCHEN</span>
+                </button>
+
+                {order.fulfillmentStatus !== 'completed' && (
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={() =>
+                      handleAction(() => onTransitionStatus(order.id, 'completed'))
+                    }
+                    className="h-10 px-5 rounded text-white text-xs font-bold uppercase tracking-wider bg-green-600 hover:bg-green-700 transition-all inline-flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">verified</span>
+                    {isProcessing ? 'Completing...' : 'COMPLETE ORDER'}
+                  </button>
+                )}
+              </>
             )}
         </div>
       </div>

@@ -101,7 +101,6 @@ export const OnlineMenuCategoriesView: React.FC<OnlineMenuCategoriesViewProps> =
   // Auto-refresh state
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -232,7 +231,6 @@ export const OnlineMenuCategoriesView: React.FC<OnlineMenuCategoriesViewProps> =
         // Strict sorting by displayOrder ascending
         mappedItems.sort((a, b) => a.displayOrder - b.displayOrder);
         setCategoriesBound(mappedItems);
-        setLastUpdated(new Date());
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Error fetching menu categories';
         setError(msg);
@@ -1020,11 +1018,6 @@ export const OnlineMenuCategoriesView: React.FC<OnlineMenuCategoriesViewProps> =
               </select>
             </div>
 
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0 font-sans">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
-            </div>
           </div>
         </div>
 

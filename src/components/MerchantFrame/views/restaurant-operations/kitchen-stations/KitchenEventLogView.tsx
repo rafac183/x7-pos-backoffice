@@ -106,7 +106,6 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
   const [loading, setLoading] = useState<boolean>(true);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
   const [currentNow] = useState(() => Date.now());
 
   // Multi-dimensional Filter Bar State
@@ -324,7 +323,6 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
       }));
 
       setLogs(parsed);
-      setLastUpdated(new Date());
     } catch (err: unknown) {
       console.error('Failed to fetch kitchen event logs', err);
       if (!silent) {
@@ -926,10 +924,10 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
       {/* 2. Unified Multi-Dimensional Filter Bar Controls */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
         {/* ROW 1: Search, Station Selector, Staff Selector, Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
             {/* Entity ID / General Search Input */}
-            <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
                 search
               </span>
@@ -957,7 +955,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
             </div>
 
             {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
               <span className="material-symbols-outlined text-base">soup_kitchen</span>
               <select
                 value={selectedStationId}
@@ -977,7 +975,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
             </div>
 
             {/* Staff / Personnel Selector (Using 'account_circle' icon) */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
               <span className="material-symbols-outlined text-base">account_circle</span>
               <select
                 value={selectedUserId}
@@ -997,35 +995,31 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
             </div>
           </div>
 
-          {/* Right Toolbar: Auto-refresh */}
-          <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
-            <button
-              type="button"
-              onClick={() => fetchEventLogs(false)}
-              disabled={loading || isRefreshing}
-              className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
-              title="Sync event log now"
-            >
-              <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
-                sync
-              </span>
-            </button>
-            <select
-              value={autoRefreshInterval}
-              onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-              className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
-            >
-              <option value={0}>Auto: Off</option>
-              <option value={10}>Auto: 10s</option>
-              <option value={30}>Auto: 30s</option>
-              <option value={60}>Auto: 60s</option>
-            </select>
-          </div>
-
-          <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
-            <span className="material-symbols-outlined text-sm">schedule</span>
-            <span>Updated:</span>
-            <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Right Toolbar: Auto-refresh */}
+            <div className="flex items-center h-[34px] px-2.5 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] gap-1.5 text-xs text-[#5f5e5e] shrink-0">
+              <button
+                type="button"
+                onClick={() => fetchEventLogs(false)}
+                disabled={loading || isRefreshing}
+                className="text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Sync event log now"
+              >
+                <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-[#ae001a]' : ''}`}>
+                  sync
+                </span>
+              </button>
+              <select
+                value={autoRefreshInterval}
+                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
+              >
+                <option value={0}>Auto: Off</option>
+                <option value={10}>Auto: 10s</option>
+                <option value={30}>Auto: 30s</option>
+                <option value={60}>Auto: 60s</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1338,7 +1332,7 @@ export const KitchenEventLogView: React.FC<KitchenEventLogViewProps> = ({ onNavi
           <NoColumnsEmptyState />
         ) : (
           <>
-            <div className="w-full overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="w-full overflow-x-auto">
               <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
                 <colgroup>
                   {visibleColumns.eventTime && <col style={{ width: '20%' }} />}

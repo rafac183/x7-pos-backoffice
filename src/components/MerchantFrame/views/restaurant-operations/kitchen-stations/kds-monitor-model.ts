@@ -127,6 +127,45 @@ export const mapKitchenStation = (s: Record<string, unknown>): BackendKitchenSta
 export const isActiveKitchenOrder = (o: { businessStatus?: string; status?: string }): boolean =>
   o.businessStatus !== 'completed' && o.businessStatus !== 'cancelled' && o.status !== 'deleted';
 
+export const inferCourseForDish = (productName?: string, explicitCourse?: string): CourseType => {
+  const norm = (explicitCourse || '').toUpperCase().trim();
+  if (norm === 'BEVERAGE' || norm === 'DRINK') return 'BEVERAGE';
+  if (norm === 'APPETIZER' || norm === 'STARTER') return 'APPETIZER';
+  if (norm === 'DESSERT') return 'DESSERT';
+
+  const p = (productName || '').toLowerCase().trim();
+  if (
+    p.includes('cappuccino') || p.includes('latte') || p.includes('cafe') || p.includes('café') || p.includes('coffee') ||
+    p.includes('espresso') || p.includes('americano') || p.includes('mocha') || p.includes('macchiato') ||
+    p.includes('matcha') || p.includes('frappe') || p.includes('tea') || p.includes('té') || p.includes('chai') ||
+    p.includes('beer') || p.includes('cerveza') || p.includes('vino') || p.includes('wine') ||
+    p.includes('soda') || p.includes('juice') || p.includes('jugo') || p.includes('water') ||
+    p.includes('agua') || p.includes('cocktail') || p.includes('drink') || p.includes('beverage') ||
+    p.includes('smoothie') || p.includes('limonada')
+  ) {
+    return 'BEVERAGE';
+  }
+  if (
+    p.includes('cake') || p.includes('torta') || p.includes('pastel') || p.includes('helado') ||
+    p.includes('ice cream') || p.includes('dessert') || p.includes('postre') || p.includes('pie') ||
+    p.includes('brownie') || p.includes('cheesecake') || p.includes('croissant') || p.includes('crossaint') ||
+    p.includes('croisant') || p.includes('medialuna') || p.includes('donut') || p.includes('dona') ||
+    p.includes('muffin') || p.includes('cookie') || p.includes('galleta') || p.includes('pastry') ||
+    p.includes('crepe') || p.includes('waffle') || p.includes('pan dulce')
+  ) {
+    return 'DESSERT';
+  }
+  if (
+    p.includes('salad') || p.includes('ensalada') || p.includes('bruschetta') || p.includes('nacho') ||
+    p.includes('soup') || p.includes('sopa') || p.includes('wings') || p.includes('alitas') ||
+    p.includes('calamari') || p.includes('fries') || p.includes('papas') || p.includes('carpaccio') ||
+    p.includes('sushi') || p.includes('roll') || p.includes('appetizer')
+  ) {
+    return 'APPETIZER';
+  }
+  return 'MAIN_COURSE';
+};
+
 /** Ticket del monitor a partir de una orden de GET /kitchen-orders. `now` fija el reloj (tests). */
 export const mapKitchenOrderToTicket = (o: RawKitchenOrder, now: number): KitchenTicket => {
   const customerTimeRef = o.createdAt ? new Date(o.createdAt).getTime() : now;
@@ -161,14 +200,19 @@ export const mapKitchenOrderToTicket = (o: RawKitchenOrder, now: number): Kitche
         }
       }
 
+      const itemName = i.product?.name || i.productName || 'Dish Item';
+      const resolvedCourse = (!i.course || i.course.toUpperCase() === 'MAIN_COURSE')
+        ? inferCourseForDish(itemName, i.course)
+        : (i.course.toUpperCase() as CourseType);
+
       return {
         id: i.id,
-        name: i.product?.name || i.productName || 'Dish Item',
+        name: itemName,
         variantName: i.variant?.name || i.variantName || undefined,
         qty: i.quantity || 1,
         preparedQuantity: i.prepared_quantity ?? i.preparedQuantity ?? 0,
         notes: i.notes || undefined,
-        course: ((i.course || 'MAIN_COURSE').toUpperCase()) as CourseType,
+        course: resolvedCourse,
         preparationStatus: prepStatusUpper,
         holdRemainingSeconds: holdSeconds,
         firedAt: i.firedAt || i.fired_at,

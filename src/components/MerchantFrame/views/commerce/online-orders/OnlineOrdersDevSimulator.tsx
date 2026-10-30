@@ -117,25 +117,46 @@ export const OnlineOrdersDevSimulator: React.FC<OnlineOrdersDevSimulatorProps> =
     const orderId = orderJson.data?.id || orderJson.id;
 
     if (orderId) {
-      // Find valid product ids
-      let p1 = 7;
-      let p2 = 3;
+      // Find valid product ids: 1 main course food dish + 1 beverage
+      let p1 = 1;
+      let p2 = 2;
       try {
-        const prodRes = await fetch(`${API_BASE}/products?limit=5`, { headers });
+        const prodRes = await fetch(`${API_BASE}/products?limit=50`, { headers });
         if (prodRes.ok) {
           const prodData = await prodRes.json();
-          const prodList = Array.isArray(prodData) ? prodData : prodData.data || prodData.items || [];
-          if (prodList.length > 0) p1 = prodList[0].id;
-          if (prodList.length > 1) p2 = prodList[1].id;
-          else p2 = p1;
+          const prodList: Array<{ id: number; name?: string }> = Array.isArray(prodData)
+            ? prodData
+            : prodData.data || prodData.items || [];
+          if (prodList.length > 0) {
+            const isBev = (n?: string) => {
+              const s = (n || '').toLowerCase();
+              return s.includes('latte') || s.includes('cappuccino') || s.includes('coffee') ||
+                     s.includes('cafe') || s.includes('tea') || s.includes('soda') ||
+                     s.includes('juice') || s.includes('water') || s.includes('drink') ||
+                     s.includes('beer') || s.includes('wine') || s.includes('cocktail');
+            };
+            const isDessertOrApp = (n?: string) => {
+              const s = (n || '').toLowerCase();
+              return s.includes('croissant') || s.includes('cake') || s.includes('pie') ||
+                     s.includes('salad') || s.includes('soup') || s.includes('dessert');
+            };
+
+            const mainItem = prodList.find((p) => !isBev(p.name) && !isDessertOrApp(p.name)) ||
+                             prodList.find((p) => !isBev(p.name)) || prodList[0];
+            const bevItem = prodList.find((p) => isBev(p.name)) ||
+                            prodList.find((p) => p.id !== mainItem.id) || mainItem;
+
+            p1 = mainItem.id;
+            p2 = bevItem.id;
+          }
         }
       } catch {
         // ignore
       }
 
       const items = [
-        { productId: p1, quantity: 2, notes: 'Extra portion' },
-        { productId: p2, quantity: 1, notes: 'Artisan beverage' },
+        { productId: p1, quantity: 1, notes: 'Extra sauce on the side' },
+        { productId: p2, quantity: 1, notes: 'Light ice' },
       ];
       for (const item of items) {
         try {

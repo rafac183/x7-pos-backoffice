@@ -84,7 +84,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
   // Auto-refresh state (identical to OnlineStoresView)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // 1. Fetch Online Stores (for dropdown filter & drawer binding)
   const fetchStores = useCallback(async () => {
@@ -152,7 +151,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
         });
 
         setMenus(list);
-        setLastUpdated(new Date());
       } catch (err: unknown) {
         console.warn('Error fetching online menus:', err);
         const msg = err instanceof Error ? err.message : 'Error fetching online menus';
@@ -629,13 +627,6 @@ export const OnlineMenusView: React.FC<OnlineMenusViewProps> = () => {
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            {/* Last Updated Timestamp */}
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0 font-poppins">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>

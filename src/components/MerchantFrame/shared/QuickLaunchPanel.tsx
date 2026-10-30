@@ -38,12 +38,12 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
               <span
                 key={action.id ?? action.label}
                 aria-current="page"
-                className="px-5 py-2.5 bg-[#ae001a] text-white font-black text-label-caps border-b-4 border-white cursor-default font-poppins flex items-center gap-2 rounded shadow-md underline underline-offset-4 decoration-2"
+                className="px-5 py-2.5 bg-[#ae001a] text-white font-black text-label-caps border-b-4 border-white cursor-default font-poppins flex items-center gap-2 rounded shadow-md"
               >
                 {action.icon && (
                   <span className="material-symbols-outlined text-[18px] no-underline">{action.icon}</span>
                 )}
-                {action.label}
+                <span className="underline underline-offset-4 decoration-2">{action.label}</span>
               </span>
             );
           }

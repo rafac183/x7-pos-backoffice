@@ -178,25 +178,24 @@ const DEFAULT_PRODUCT_VARIANTS: Record<string, string[]> = {
 const suggestCourseForProduct = (productName: string): 'beverage' | 'appetizer' | 'main_course' | 'dessert' => {
   const p = (productName || '').toLowerCase().trim();
   if (
-    p.includes('taco') || p.includes('pastor') || p.includes('burger') ||
-    p.includes('pizza') || p.includes('steak') || p.includes('ribeye') ||
-    p.includes('sandwich') || p.includes('pasta')
-  ) {
-    return 'main_course';
-  }
-  if (
-    p.includes('cappuccino') || p.includes('latte') || p.includes('cafe') || p.includes('coffee') ||
-    p.includes('espresso') || p.includes('tea') || p.includes('beer') ||
+    p.includes('cappuccino') || p.includes('latte') || p.includes('cafe') || p.includes('café') || p.includes('coffee') ||
+    p.includes('espresso') || p.includes('tea') || p.includes('té') || p.includes('chai') || p.includes('beer') ||
     p.includes('cerveza') || p.includes('vino') || p.includes('wine') || p.includes('soda') ||
     p.includes('juice') || p.includes('jugo') || p.includes('water') || p.includes('agua') ||
-    p.includes('cocktail') || p.includes('drink') || p.includes('beverage') || p.includes('limonada')
+    p.includes('cocktail') || p.includes('drink') || p.includes('beverage') || p.includes('limonada') ||
+    p.includes('americano') || p.includes('mocha') || p.includes('macchiato') || p.includes('matcha') ||
+    p.includes('frappe') || p.includes('smoothie') || p.includes('licuado') || p.includes('infusion')
   ) {
     return 'beverage';
   }
   if (
     p.includes('cake') || p.includes('torta') || p.includes('pastel') || p.includes('helado') ||
     p.includes('ice cream') || p.includes('dessert') || p.includes('postre') || p.includes('pie') ||
-    p.includes('brownie') || p.includes('cheesecake') || p.includes('croissant')
+    p.includes('brownie') || p.includes('cheesecake') || p.includes('croissant') || p.includes('crossaint') ||
+    p.includes('croisant') || p.includes('medialuna') || p.includes('dona') || p.includes('donut') ||
+    p.includes('pastry') || p.includes('cookie') || p.includes('galleta') || p.includes('muffin') ||
+    p.includes('crepe') || p.includes('waffle') || p.includes('tart') || p.includes('tarta') ||
+    p.includes('pan dulce') || p.includes('flan') || p.includes('churro')
   ) {
     return 'dessert';
   }
@@ -204,15 +203,26 @@ const suggestCourseForProduct = (productName: string): 'beverage' | 'appetizer' 
     p.includes('salad') || p.includes('ensalada') || p.includes('bruschetta') || p.includes('nacho') ||
     p.includes('soup') || p.includes('sopa') || p.includes('wings') || p.includes('alitas') ||
     p.includes('calamari') || p.includes('fries') || p.includes('papas') || p.includes('carpaccio') ||
-    p.includes('sushi') || p.includes('roll')
+    p.includes('sushi') || p.includes('roll') || p.includes('appetizer') || p.includes('entrada')
   ) {
     return 'appetizer';
+  }
+  if (
+    p.includes('taco') || p.includes('pastor') || p.includes('burger') ||
+    p.includes('pizza') || p.includes('steak') || p.includes('ribeye') ||
+    p.includes('sandwich') || p.includes('pasta') || p.includes('pollo') ||
+    p.includes('chicken') || p.includes('carne') || p.includes('beef') ||
+    p.includes('pescado') || p.includes('fish') || p.includes('asado')
+  ) {
+    return 'main_course';
   }
   return 'main_course';
 };
 
 const getItemPrepAction = (course?: string, productName?: string) => {
-  const effectiveCourse = course || (productName ? suggestCourseForProduct(productName) : 'main_course');
+  const effectiveCourse = (course && course !== 'main_course')
+    ? course
+    : (productName ? suggestCourseForProduct(productName) : (course || 'main_course'));
   const isBeverage = effectiveCourse === 'beverage' || (productName && suggestCourseForProduct(productName) === 'beverage');
 
   if (isBeverage) {
@@ -239,7 +249,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
   const [loadError, setLoadError] = useState<string | null>(null);
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // Workspace Mode (Live Bump Screen vs Historical Audit Table)
   const [workspaceMode, setWorkspaceMode] = useState<'bump' | 'audit'>('bump');
@@ -537,7 +546,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       }));
 
       setOrders(parsedOrders);
-      setLastUpdated(new Date());
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Error syncing kitchen orders';
       setLoadError(message);
@@ -837,7 +845,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
 
   const totalPages = Math.ceil(filteredOrders.length / pageSize) || 1;
   const activeColSpan = Object.values(visibleColumns).filter(Boolean).length;
-  const densityPadding = getDensityPadding(rowDensity);
+  const densityPadding = `${getDensityPadding(rowDensity)} !px-3`;
 
   // Actions with full Offline Queue support
   const handleStartPrep = async (order: KitchenOrderTicket) => {
@@ -1346,8 +1354,24 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
           o.id === idToRecall
             ? {
                 ...o,
-                businessStatus: 'started',
+                businessStatus: 'pending',
+                startedAt: null,
                 completedAt: null,
+                items: (o.items || []).map(it => {
+                  const effectiveCourse = (it.course && it.course !== 'main_course')
+                    ? it.course
+                    : suggestCourseForProduct(it.productName);
+                  const isHeld = effectiveCourse === 'main_course' || effectiveCourse === 'dessert';
+                  return {
+                    ...it,
+                    course: effectiveCourse,
+                    preparationStatus: isHeld ? ('held' as const) : ('pending' as const),
+                    preparedQuantity: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    firedAt: isHeld ? null : new Date().toISOString(),
+                  };
+                }),
               }
             : o
         )
@@ -1375,6 +1399,12 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       );
       applyOptimisticRecall();
       showToast(`Order #KO-${idToRecall} recalled`, 'info');
+      window.dispatchEvent(
+        new CustomEvent('x7_kds_data_reset', {
+          detail: { action: 'recall', orderId: idToRecall },
+        }),
+      );
+      window.dispatchEvent(new CustomEvent('online_orders_refresh'));
       loadOrders(true);
     } catch (err) {
       if (!isRetryableKdsError(err)) {
@@ -1587,10 +1617,10 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
       {/* 2. Multi-criteria Toolbar identical to Kitchen Devices */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4 mb-6">
         {/* Row 1: Search + Station Selector on left, and View Switcher + Auto-Refresh on right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
                 search
               </span>
@@ -1620,7 +1650,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             </div>
 
             {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
               <span className="material-symbols-outlined text-base">soup_kitchen</span>
               <select
                 value={selectedStationId}
@@ -1697,12 +1727,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>
@@ -1976,19 +2000,6 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
               <span className="material-symbols-outlined text-[18px]">add</span>
               CREATE ORDER
             </button>
-
-            {/* Recall Button */}
-            {lastBumpedOrder && (
-              <button
-                type="button"
-                onClick={() => handleRecallOrder()}
-                className="h-[34px] px-3 rounded-lg border border-[#d5cfc4] bg-[#fcfcfb] text-[#5f5e5e] text-xs font-bold uppercase tracking-wider hover:bg-[#f2ede5] hover:text-[#1d1c17] transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
-                title="Undo last bumped ticket"
-              >
-                <span className="material-symbols-outlined text-sm text-amber-700">undo</span>
-                RECALL #KO-{lastBumpedOrder.id}
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -2069,15 +2080,15 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                 <table className="w-full text-left text-xs border-collapse font-sans">
                   <thead>
                     <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
-                      {visibleColumns.orderRef && <th className={`${densityPadding} w-36 min-w-[120px]`}>Order Reference</th>}
-                      {visibleColumns.stationPriority && <th className={`${densityPadding} w-44 min-w-[130px]`}>Station &amp; Priority</th>}
-                      {visibleColumns.items && <th className={`${densityPadding} w-36 min-w-[160px]`}>Items &amp; Dishes</th>}
-                      {visibleColumns.lifecycleStatus && <th className={`${densityPadding} text-center w-28 min-w-[90px]`}>Status</th>}
-                      {visibleColumns.createdTimestamp && <th className={`${densityPadding} w-36 min-w-[110px]`}>Created</th>}
-                      {visibleColumns.startedDelay && <th className={`${densityPadding} w-32 min-w-[100px]`}>Started / Delay</th>}
-                      {visibleColumns.completedPrepTime && <th className={`${densityPadding} w-32 min-w-[100px]`}>Completed / Prep Time</th>}
-                      {visibleColumns.cancellationAudit && <th className={`${densityPadding} w-32 min-w-[100px]`}>Cancellation Audit</th>}
-                      {visibleColumns.actions && <th className={`${densityPadding} text-right w-20 min-w-[70px]`}>Actions</th>}
+                      {visibleColumns.orderRef && <th className={`${densityPadding} min-w-[96px]`}>Order Reference</th>}
+                      {visibleColumns.stationPriority && <th className={`${densityPadding} min-w-[116px]`}>Station &amp; Priority</th>}
+                      {visibleColumns.items && <th className={`${densityPadding} min-w-[150px]`}>Items &amp; Dishes</th>}
+                      {visibleColumns.lifecycleStatus && <th className={`${densityPadding} !px-2 text-center min-w-[82px]`}>Status</th>}
+                      {visibleColumns.createdTimestamp && <th className={`${densityPadding} min-w-[96px]`}>Created</th>}
+                      {visibleColumns.startedDelay && <th className={`${densityPadding} min-w-[92px]`}>Started / Delay</th>}
+                      {visibleColumns.completedPrepTime && <th className={`${densityPadding} min-w-[96px]`}>Completed / Prep Time</th>}
+                      {visibleColumns.cancellationAudit && <th className={`${densityPadding} min-w-[92px]`}>Cancellation Audit</th>}
+                      {visibleColumns.actions && <th className={`${densityPadding} text-right min-w-[68px]`}>Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
@@ -2341,7 +2352,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             description="No orders matched your current date, station, status, or cancellation audit criteria."
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="flex flex-col gap-4">
           {filteredOrders.map(order => {
             const isAllHeld = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'held');
             const isAllPending = order.items.length > 0 && order.items.every(it => it.preparationStatus === 'pending');
@@ -2372,7 +2383,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
             return (
               <div
                 key={order.id}
-                className={`bg-white hover:bg-[#fef9f1] border rounded-xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 ${
+                className={`w-full bg-white hover:bg-[#fef9f1] border rounded-xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 ${
                   isCompleted
                     ? 'border-emerald-400 ring-1 ring-emerald-200 bg-emerald-50/10'
                     : isCancelled
@@ -2386,7 +2397,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
               >
                 {/* Card Header */}
                 <div
-                  className={`p-3.5 border-b flex items-center justify-between transition-colors ${
+                  className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-3 transition-colors ${
                     isCompleted
                       ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
                       : isCancelled
@@ -2398,70 +2409,78 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                       : 'bg-[#fcfbf9] border-[#e8e2d8] text-[#1d1c17]'
                   }`}
                 >
-                  <div>
-                    <div className="flex items-center gap-1.5 font-sans font-bold text-sm">
-                      <span className="text-[#1d1c17]">#KO-{order.id}</span>
-                      {isCompleted && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-black tracking-wide">
-                          READY
-                        </span>
-                      )}
-                      {isAllHeld && (
-                        <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-black tracking-wide">
-                          HELD
-                        </span>
-                      )}
-                      {isStarted && (
-                        <span className="text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-1.5 py-0.5 rounded font-black tracking-wide">
-                          IN PREP
-                        </span>
-                      )}
-                      {isPending && (
-                        <span className="text-[10px] bg-stone-100 text-stone-600 border border-stone-300 px-1.5 py-0.5 rounded font-bold tracking-wide">
-                          PENDING
-                        </span>
-                      )}
-                      {isCancelled && (
-                        <span className="text-[10px] bg-red-100 text-red-800 border border-red-300 px-1.5 py-0.5 rounded font-black tracking-wide">
-                          CANCELLED
-                        </span>
-                      )}
-                      {order.priority >= 3 ? (
-                        <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-1.5 py-0.2 rounded font-black">
-                          VIP (+3)
-                        </span>
-                      ) : order.priority === 2 ? (
-                        <span className="text-[10px] bg-red-100 text-red-800 border border-red-300 px-1.5 py-0.2 rounded font-black">
-                          URGENT (+2)
-                        </span>
-                      ) : order.priority === 1 ? (
-                        <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded font-black">
-                          HIGH (+1)
-                        </span>
-                      ) : null}
-                      {elapsedMinutes >= criticalSlaMinutes && !isCompleted && !isCancelled && (
-                        <span className="text-[10px] bg-red-600 text-white border border-red-700 px-1.5 py-0.5 rounded font-black tracking-wide flex items-center gap-0.5 shadow-xs animate-pulse">
-                          <span className="material-symbols-outlined text-[12px]">shield</span>
-                          SLA SHIELD
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-[#5f5e5e] block font-normal">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="font-mono font-extrabold text-sm text-[#1d1c17] whitespace-nowrap">
+                      #KO-{order.id}
+                    </span>
+                    {order.orderId ? (
+                      <span className="font-mono text-[11px] font-semibold text-[#5f5e5e] bg-white/80 border border-[#e8e2d8] px-2 py-0.5 rounded whitespace-nowrap">
+                        #ORD-{order.orderId}
+                      </span>
+                    ) : order.onlineOrderId ? (
+                      <span className="font-mono text-[11px] font-semibold text-[#5f5e5e] bg-white/80 border border-[#e8e2d8] px-2 py-0.5 rounded whitespace-nowrap">
+                        #ONL-{order.onlineOrderId}
+                      </span>
+                    ) : null}
+                    {isCompleted && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        READY
+                      </span>
+                    )}
+                    {isAllHeld && (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        HELD
+                      </span>
+                    )}
+                    {isStarted && (
+                      <span className="text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        IN PREP
+                      </span>
+                    )}
+                    {isPending && (
+                      <span className="text-[10px] bg-stone-100 text-stone-600 border border-stone-300 px-2 py-0.5 rounded font-bold tracking-wide whitespace-nowrap">
+                        PENDING
+                      </span>
+                    )}
+                    {isCancelled && (
+                      <span className="text-[10px] bg-red-100 text-red-800 border border-red-300 px-2 py-0.5 rounded font-black tracking-wide whitespace-nowrap">
+                        CANCELLED
+                      </span>
+                    )}
+                    {order.priority >= 3 ? (
+                      <span className="text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded font-black whitespace-nowrap">
+                        VIP (+3)
+                      </span>
+                    ) : order.priority === 2 ? (
+                      <span className="text-[10px] bg-red-100 text-red-800 border border-red-300 px-2 py-0.5 rounded font-black whitespace-nowrap">
+                        URGENT (+2)
+                      </span>
+                    ) : order.priority === 1 ? (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded font-black whitespace-nowrap">
+                        HIGH (+1)
+                      </span>
+                    ) : null}
+                    {elapsedMinutes >= criticalSlaMinutes && !isCompleted && !isCancelled && (
+                      <span className="text-[10px] bg-red-600 text-white border border-red-700 px-2 py-0.5 rounded font-black tracking-wide inline-flex items-center gap-1 shadow-xs animate-pulse whitespace-nowrap">
+                        <span className="material-symbols-outlined text-[12px]">shield</span>
+                        SLA SHIELD
+                      </span>
+                    )}
+                    <span className="text-xs text-[#5f5e5e] font-medium bg-white/80 border border-[#e8e2d8] px-2.5 py-0.5 rounded-md whitespace-nowrap">
                       {order.stationName || 'Unassigned'}
                     </span>
                   </div>
 
                   {/* Timer */}
                   {!isCompleted && !isCancelled && (
-                    <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${timerColorClass}`}>
+                    <span className={`px-2.5 py-1 rounded-md text-xs font-mono font-bold whitespace-nowrap shrink-0 ${timerColorClass}`}>
                       {timerDisplay}
                     </span>
                   )}
                 </div>
 
                 {/* Body & Items */}
-                <div className="p-4 flex-1 flex flex-col gap-3">
-                  {/* Notes Callout */}
+                <div className="px-4 py-3 flex-1 flex flex-col gap-2.5">
                   {/* Notes Callout - Culinary instructions only */}
                   {(() => {
                     const cleanNotes = order.notes
@@ -2478,7 +2497,7 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                   })()}
 
                   {/* Dishes List */}
-                  <div className="space-y-2 flex-1 py-1">
+                  <div className="flex flex-col gap-2 flex-1">
                     {[...order.items].sort((a, b) => {
                       const rank = (st: string) => {
                         if (st === 'in_preparation' || st === 'pending') return 1;
@@ -2493,50 +2512,51 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                       return (
                         <div
                           key={it.id}
-                          className="p-2 rounded-lg bg-[#fcfbf9] border border-[#ebe5da] flex items-start justify-between gap-2 text-xs text-[#1d1c17] transition-colors hover:border-[#ded5c5]"
+                          className="px-3 py-2.5 rounded-lg bg-[#fcfbf9] border border-[#ebe5da] flex flex-wrap items-center justify-between gap-3 text-xs text-[#1d1c17] transition-colors hover:border-[#ded5c5]"
                         >
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-[200px]">
                             {/* Qty pill */}
-                            <span className="w-5 h-5 rounded bg-[#eee8dc] text-[#1d1c17] font-mono font-extrabold text-[11px] flex items-center justify-center shrink-0">
+                            <span className="w-6 h-6 rounded bg-[#eee8dc] text-[#1d1c17] font-mono font-extrabold text-xs flex items-center justify-center shrink-0">
                               {it.quantity}
                             </span>
 
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-extrabold text-[#1d1c17] break-words leading-tight">
-                                  {it.productName}
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className="font-extrabold text-[13px] text-[#1d1c17] leading-snug">
+                                {it.productName}
+                              </span>
+                              {it.variantName && (
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#ede7dc] text-[#554d42] whitespace-nowrap">
+                                  {it.variantName}
                                 </span>
-                                {it.variantName && (
-                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#ede7dc] text-[#554d42]">
-                                    {it.variantName}
-                                  </span>
-                                )}
-                              </div>
+                              )}
 
                               {/* Course chip */}
-                              {it.course && (
-                                <div className="mt-1 flex items-center gap-1">
-                                  <span className="inline-flex items-center gap-1 text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-white text-[#5f5e5e] border border-[#e2dcce]">
+                              {(() => {
+                                const effectiveCourse = (it.course && it.course !== 'main_course')
+                                  ? it.course
+                                  : suggestCourseForProduct(it.productName);
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[10px] uppercase font-black px-2 py-0.5 rounded bg-white text-[#5f5e5e] border border-[#e2dcce] whitespace-nowrap">
                                     <span>
-                                      {it.course === 'beverage'
+                                      {effectiveCourse === 'beverage'
                                         ? '🍹'
-                                        : it.course === 'appetizer'
+                                        : effectiveCourse === 'appetizer'
                                         ? '🥗'
-                                        : it.course === 'dessert'
+                                        : effectiveCourse === 'dessert'
                                         ? '🍰'
                                         : '🍔'}
                                     </span>
-                                    <span>{it.course.replace('_', ' ')}</span>
+                                    <span>{effectiveCourse.replace('_', ' ')}</span>
                                   </span>
-                                </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           </div>
 
                           {/* Status badge & Item actions */}
-                          <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                            {/* Individual POUR / PREP (or FIRE) button on item if more than 1 item */}
-                            {order.items.length > 1 && !isCompleted && !isCancelled && (
+                          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                            {/* Individual POUR / PREP (or FIRE) button on item */}
+                            {!isCompleted && !isCancelled && (
                               <>
                                 {it.preparationStatus === 'held' && (
                                   <button
@@ -3269,7 +3289,8 @@ export const KitchenOrdersView: React.FC<KitchenOrdersViewProps> = ({ onNavigate
                                     value={item.productName}
                                     onChange={e => {
                                       const val = e.target.value;
-                                      setFormItems(prev => prev.map((it, i) => i === index ? { ...it, productName: val } : it));
+                                      const inferred = suggestCourseForProduct(val);
+                                      setFormItems(prev => prev.map((it, i) => i === index ? { ...it, productName: val, course: inferred } : it));
                                     }}
                                     className="mt-1.5 w-full px-2.5 py-1 bg-white border border-[#ae001a] rounded-md text-xs outline-none text-[#1d1c17]"
                                     required

@@ -116,7 +116,6 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [refreshInterval, setRefreshInterval] = useState<number>(10); // 10s default
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [actionInProgressId, setActionInProgressId] = useState<number | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
@@ -209,7 +208,6 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       );
       const rawItems: KitchenOrderItemDetail[] = resData.data || [];
       setItems(rawItems);
-      setLastUpdated(new Date());
     } catch (err: unknown) {
       if (!isBackground) {
         const msg = err instanceof Error ? err.message : 'Error loading kitchen items';
@@ -855,7 +853,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
   const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
   const activeColSpan = Object.values(visibleColumns).filter(Boolean).length;
-  const densityPadding = getDensityPadding(density);
+  const densityPadding = `${getDensityPadding(density)} !px-3`;
 
   // Format Elapsed Time
   const formatElapsedTime = (dateStr: string): string => {
@@ -1013,10 +1011,10 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
       {/* 2. Canonical Unified Filter Toolbar */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
         {/* Row 1: Search and Station Selector on left, View Switcher + Auto-Refresh on right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
                 search
               </span>
@@ -1046,7 +1044,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
             </div>
 
             {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
               <span className="material-symbols-outlined text-base">soup_kitchen</span>
               <select
                 value={selectedStationId}
@@ -1125,12 +1123,6 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>
@@ -1402,7 +1394,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
 
                   {/* Cards Grid for this Order */}
                   {!isCollapsed && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {group.items.map(item => {
             const isHeld = item.preparationStatus === 'held';
             const isReady = item.preparationStatus === 'ready';
@@ -1595,7 +1587,7 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
                 </div>
 
                 {/* Card Footer: Status Badge & Auxiliary Buttons */}
-                <div className="px-4 py-3 bg-[#fcfbf9] border-t border-[#e8e2d8] flex items-center justify-between gap-2">
+                <div className="px-4 py-3 bg-[#fcfbf9] border-t border-[#e8e2d8] flex flex-wrap items-center justify-between gap-2">
                   {/* Status Badge Tag */}
                   <div className="flex items-center gap-1.5">
                     {isReady ? (
@@ -1814,18 +1806,28 @@ export const KitchenOrderItemsView: React.FC<KitchenOrderItemsViewProps> = ({ on
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full table-fixed text-left text-xs border-collapse font-sans">
+                  <colgroup>
+                    {visibleColumns.itemDish && <col />}
+                    {visibleColumns.ticket && <col style={{ width: '98px' }} />}
+                    {visibleColumns.station && <col style={{ width: '124px' }} />}
+                    {visibleColumns.multiplier && <col style={{ width: '68px' }} />}
+                    {visibleColumns.progress && <col style={{ width: '108px' }} />}
+                    {visibleColumns.prepState && <col style={{ width: '112px' }} />}
+                    {visibleColumns.notes && <col style={{ width: '146px' }} />}
+                    {visibleColumns.actions && <col style={{ width: '128px' }} />}
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-[#e8e2d8] bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs">
-                      {visibleColumns.itemDish && <th className={`${densityPadding} w-auto min-w-[200px]`}>Item / Dish</th>}
-                      {visibleColumns.ticket && <th className={`${densityPadding} w-32 min-w-[100px]`}>Ticket</th>}
-                      {visibleColumns.station && <th className={`${densityPadding} w-36 min-w-[110px]`}>Station</th>}
-                      {visibleColumns.multiplier && <th className={`${densityPadding} text-center w-24 min-w-[70px]`}>Multiplier</th>}
-                      {visibleColumns.progress && <th className={`${densityPadding} text-center w-36 min-w-[110px]`}>Progress (Prepared)</th>}
-                      {visibleColumns.prepState && <th className={`${densityPadding} text-center w-36 min-w-[110px]`}>Preparation State</th>}
-                      {visibleColumns.notes && <th className={`${densityPadding} w-44 min-w-[130px]`}>Notes / Callouts</th>}
-                      {visibleColumns.actions && <th className={`${densityPadding} text-right w-28 min-w-[90px]`}>Actions</th>}
+                      {visibleColumns.itemDish && <th className={densityPadding}>Item / Dish</th>}
+                      {visibleColumns.ticket && <th className={densityPadding}>Ticket</th>}
+                      {visibleColumns.station && <th className={densityPadding}>Station</th>}
+                      {visibleColumns.multiplier && <th className={`${densityPadding} !px-2 text-center`}>Multiplier</th>}
+                      {visibleColumns.progress && <th className={`${densityPadding} !px-2 text-center`}>Progress (Prepared)</th>}
+                      {visibleColumns.prepState && <th className={`${densityPadding} !px-2 text-center`}>Preparation State</th>}
+                      {visibleColumns.notes && <th className={densityPadding}>Notes / Callouts</th>}
+                      {visibleColumns.actions && <th className={`${densityPadding} text-right`}>Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">

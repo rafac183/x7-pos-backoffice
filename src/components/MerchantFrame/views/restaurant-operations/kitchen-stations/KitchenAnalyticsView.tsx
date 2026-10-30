@@ -124,7 +124,6 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
   const [stations, setStations] = useState<StationOption[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
 
   // Mode View Switcher: Efficiency Matrix vs Bottlenecks vs SOS Heatmap
@@ -404,7 +403,6 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
         }
 
         setData(payload);
-        setLastUpdated(new Date());
         return;
       }
     } catch (err: unknown) {
@@ -993,12 +991,6 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                   <option value={60}>Auto: 60s</option>
                 </select>
               </div>
-
-              <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1">
-                <span className="material-symbols-outlined text-sm">schedule</span>
-                <span>Updated:</span>
-                <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
-              </div>
             </div>
           </div>
         </div>
@@ -1203,30 +1195,39 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
+                  <colgroup>
+                    {visibleColumns.station && <col />}
+                    {visibleColumns.type && <col style={{ width: '122px' }} />}
+                    {visibleColumns.totalItems && <col style={{ width: '112px' }} />}
+                    {visibleColumns.avgPrep && <col style={{ width: '124px' }} />}
+                    {visibleColumns.peakQueue && <col style={{ width: '144px' }} />}
+                    {visibleColumns.efficiencyRating && <col style={{ width: '186px' }} />}
+                    {visibleColumns.actions && <col style={{ width: '72px' }} />}
+                  </colgroup>
                   <thead>
                     <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
                       {visibleColumns.station && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-auto min-w-[180px]`}>Station Name &amp; ID</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Station Name &amp; ID</th>
                       )}
                       {visibleColumns.type && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Discipline Role</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Discipline Role</th>
                       )}
                       {visibleColumns.totalItems && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-32 min-w-[100px]`}>Items Prepared</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Items Prepared</th>
                       )}
                       {visibleColumns.avgPrep && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Avg Prep Time</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Avg Prep Time</th>
                       )}
                       {visibleColumns.peakQueue && (
-                        <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Peak Queue Capacity</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Peak Queue Capacity</th>
                       )}
                       {visibleColumns.efficiencyRating && (
-                        <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-32 min-w-[100px]`}>Efficiency Rating</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-2 text-center text-[#5f5e5e]`}>Efficiency Rating</th>
                       )}
                       {visibleColumns.actions && (
-                        <th className={`${getDensityPadding(rowDensity)} text-right text-[#5f5e5e] w-24 min-w-[70px]`}>Action</th>
+                        <th className={`${getDensityPadding(rowDensity)} !px-3 text-right text-[#5f5e5e]`}>Action</th>
                       )}
                     </tr>
                   </thead>
@@ -1249,7 +1250,7 @@ export const KitchenAnalyticsView: React.FC<KitchenAnalyticsViewProps> = ({ onNa
                       />
                     ) : (
                       paginatedStations.map((station) => {
-                        const densityPadding = getDensityPadding(rowDensity);
+                        const densityPadding = `${getDensityPadding(rowDensity)} !px-3`;
                         const isOptimal = station.efficiencyRating === 'optimal';
                         const isWarning = station.efficiencyRating === 'warning';
 

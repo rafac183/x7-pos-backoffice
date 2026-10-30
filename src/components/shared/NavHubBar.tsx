@@ -116,14 +116,14 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                 title={backToDashboardLabel || 'Return to Main Dashboard'}
                 aria-label={backToDashboardLabel || 'Return to Main Dashboard'}
               >
-                <span className="material-symbols-outlined text-base" aria-hidden="true">arrow_back</span>
+                <span className="material-symbols-outlined text-[24px]" aria-hidden="true">arrow_back</span>
               </button>
               <div className="h-5 w-px bg-zinc-700/80 ml-1 mr-2 hidden sm:block" aria-hidden="true" />
             </>
           ) : title ? (
             <div className="hidden lg:flex items-center gap-2 text-xs font-bold tracking-wider text-[#e8e2d8] uppercase mr-2">
               {titleIcon && (
-                <span className="material-symbols-outlined text-[#ae001a] text-lg" aria-hidden="true">
+                <span className="material-symbols-outlined text-[#ae001a] text-[24px]" aria-hidden="true">
                   {titleIcon}
                 </span>
               )}
@@ -153,7 +153,7 @@ export const NavHubBar: React.FC<NavHubBarProps> = ({
                 }`}
               >
                 {item.icon && (
-                  <span className="material-symbols-outlined text-sm" aria-hidden="true">{item.icon}</span>
+                  <span className="material-symbols-outlined text-[24px]" aria-hidden="true">{item.icon}</span>
                 )}
                 <span>{item.label}</span>
               </button>

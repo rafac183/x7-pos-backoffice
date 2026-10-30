@@ -93,7 +93,6 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
   // Auto-refresh state (identical to Event Log)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   const fetchStores = useCallback(async (silent: boolean = false) => {
     try {
@@ -133,7 +132,6 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
         merchant: item.merchant as OnlineStoreItem['merchant'],
       }));
       setStores(list);
-      setLastUpdated(new Date());
     } catch (err: unknown) {
       console.warn('Error fetching online stores:', err);
       const msg = err instanceof Error ? err.message : 'Error fetching online stores';
@@ -597,13 +595,6 @@ export const OnlineStoresView: React.FC<OnlineStoresViewProps> = () => {
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            {/* Last Updated Timestamp */}
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0 font-poppins">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
 
           </div>

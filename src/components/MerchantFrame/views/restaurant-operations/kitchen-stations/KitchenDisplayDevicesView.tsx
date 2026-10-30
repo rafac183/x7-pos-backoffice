@@ -91,7 +91,6 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(10);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
 
   // Table: Density, Visible Columns, and Pagination
   const [visibleColumns, setVisibleColumns] = useState<{
@@ -291,7 +290,6 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
         updated_at: dev.updated_at ?? dev.updatedAt ?? new Date().toISOString(),
       }));
       setDevices(dataList);
-      setLastUpdated(new Date());
     } catch (err) {
       console.error('API error fetching KDS devices from database:', err);
       setError('Failed to fetch KDS display devices from backend API.');
@@ -663,10 +661,10 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
       {/* 2. Canonical Unified Filter Toolbar */}
       <div className="bg-white border border-[#e8e2d8] rounded-xl p-4 sm:p-5 shadow-sm flex flex-col gap-4">
         {/* Row 1: Search on left, Station selector, View Switcher + Reload on right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 w-full">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 flex-1 min-w-0">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <div className="relative flex-1 min-w-[170px] max-w-sm">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-[#5f5e5e]">
                 search
               </span>
@@ -690,12 +688,12 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
             </div>
 
             {/* Station Dropdown Selector (Using 'soup_kitchen' icon) */}
-            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e]">
+            <div className="flex items-center gap-1.5 text-xs text-[#5f5e5e] shrink-0">
               <span className="material-symbols-outlined text-base">soup_kitchen</span>
               <select
                 value={stationFilter}
                 onChange={(e) => setStationFilter(e.target.value)}
-                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[220px] transition-colors duration-200"
+                className="h-[34px] px-3 bg-[#fcfcfb] rounded-lg border border-[#d5cfc4] text-xs focus:border-[#ae001a] outline-none font-sans text-[#1d1c17] cursor-pointer max-w-[210px] transition-colors duration-200"
                 aria-label="Filter by kitchen station"
               >
                 <option value="All">All Stations ({totalActiveCount})</option>
@@ -762,16 +760,11 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
                 className="bg-transparent text-[11px] font-semibold text-[#1d1c17] focus:outline-none cursor-pointer h-full"
               >
                 <option value={0}>Auto: Off</option>
+                <option value={5}>Auto: 5s</option>
                 <option value={10}>Auto: 10s</option>
                 <option value={30}>Auto: 30s</option>
                 <option value={60}>Auto: 60s</option>
               </select>
-            </div>
-
-            <div className="hidden sm:flex items-center h-[34px] gap-1 text-[11px] text-[#5f5e5e] pl-1 shrink-0">
-              <span className="material-symbols-outlined text-sm">schedule</span>
-              <span>Updated:</span>
-              <span className="font-mono font-bold text-[#1d1c17]">{lastUpdated.toLocaleTimeString()}</span>
             </div>
           </div>
         </div>
@@ -1129,17 +1122,26 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
             <NoColumnsEmptyState />
           ) : (
             <>
-              <div className="overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full table-fixed text-left border-collapse text-xs font-sans">
+                  <colgroup>
+                    {visibleColumns.deviceIdentity && <col />}
+                    {visibleColumns.stationBinding && <col style={{ width: '186px' }} />}
+                    {visibleColumns.ipAddress && <col style={{ width: '138px' }} />}
+                    {visibleColumns.connectivity && <col style={{ width: '104px' }} />}
+                    {visibleColumns.lastSync && <col style={{ width: '154px' }} />}
+                    {visibleColumns.status && <col style={{ width: '84px' }} />}
+                    {visibleColumns.actions && <col style={{ width: '108px' }} />}
+                  </colgroup>
                   <thead>
                     <tr className="bg-[#ece8e0] text-[#5f5e5e] font-sans font-semibold text-label-caps text-xs border-b border-[#e8e2d8]">
-                      {visibleColumns.deviceIdentity && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-auto min-w-[180px]`}>Device Identity & HW ID</th>}
-                      {visibleColumns.stationBinding && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-44 min-w-[130px]`}>Mapped Kitchen Station</th>}
-                      {visibleColumns.ipAddress && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Network IP Address</th>}
-                      {visibleColumns.connectivity && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-32 min-w-[100px]`}>Live Connectivity</th>}
-                      {visibleColumns.lastSync && <th className={`${getDensityPadding(rowDensity)} text-[#5f5e5e] w-36 min-w-[110px]`}>Last Sync Timestamp</th>}
-                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Lifecycle Status</th>}
-                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} text-center text-[#5f5e5e] w-28 min-w-[90px]`}>Actions</th>}
+                      {visibleColumns.deviceIdentity && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Device Identity & HW ID</th>}
+                      {visibleColumns.stationBinding && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Mapped Kitchen Station</th>}
+                      {visibleColumns.ipAddress && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Network IP Address</th>}
+                      {visibleColumns.connectivity && <th className={`${getDensityPadding(rowDensity)} !px-2 text-center text-[#5f5e5e]`}>Live Connectivity</th>}
+                      {visibleColumns.lastSync && <th className={`${getDensityPadding(rowDensity)} !px-3 text-[#5f5e5e]`}>Last Sync Timestamp</th>}
+                      {visibleColumns.status && <th className={`${getDensityPadding(rowDensity)} !px-2 text-center text-[#5f5e5e]`}>Lifecycle Status</th>}
+                      {visibleColumns.actions && <th className={`${getDensityPadding(rowDensity)} !px-3 text-center text-[#5f5e5e]`}>Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#e8e2d8] text-xs font-sans">
@@ -1188,7 +1190,7 @@ export const KitchenDisplayDevicesView: React.FC<KitchenDisplayDevicesViewProps>
                         : filteredDevices.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize)
                       ).map((device) => {
                       const isInactive = device.status === 'deleted';
-                      const densityPadding = getDensityPadding(rowDensity);
+                      const densityPadding = `${getDensityPadding(rowDensity)} !px-3`;
                       return (
                         <tr
                           key={device.id}

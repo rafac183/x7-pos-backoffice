@@ -44,6 +44,8 @@ export const KitchenKDSHubView: React.FC<KitchenKDSHubViewProps> = ({
               station_type: (st.stationType as KitchenStationType | undefined) ?? st.station_type ?? 'PREP',
               display_mode: (st.displayMode as KitchenDisplayMode | undefined) ?? st.display_mode ?? 'AUTO',
               display_order: (st.displayOrder as number | undefined) ?? st.display_order ?? 1,
+              station_number: Number(st.stationNumber ?? st.station_number ?? st.displayOrder ?? st.display_order ?? st.id),
+              stationNumber: Number(st.stationNumber ?? st.station_number ?? st.displayOrder ?? st.display_order ?? st.id),
               printer_name: (st.printerName as string | null | undefined) ?? st.printer_name ?? null,
               status: st.status || 'active',
             }))
