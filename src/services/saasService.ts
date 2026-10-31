@@ -1,12 +1,38 @@
 //src/services/saasService.ts
-import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto, PlanFeature, CreatePlanFeatureDto, UpdatePlanFeatureDto } from '../types/subscription';
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto, PlanFeature, CreatePlanFeatureDto, UpdatePlanFeatureDto, CompanySubscription, UpdateCompanySubscriptionDto } from '../types/subscription';
 import type { CompanyRegistryItem, CompanyRegistryPayload, CompanyRegistryStatus } from '../types/company-registry';
+import type { PlatformUser } from '../types/user';
 import { saasRequest } from '../api/http';
 
 // Las rutas de este servicio van sin barra inicial ('subscription-plan', 'features/3'...).
 function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   return saasRequest<T>(`/${path}`, { method: 'GET', ...options }, 'Request failed. Please try again.');
 }
+
+// Los listados del backend paginan (10 por defecto, 100 como máximo): sin recorrer todas las
+// páginas, Applications mostraba 10 de 28 y Plan Features 100 de las 116 del plan Executive.
+const PAGE_SIZE = 100;
+
+async function saasFetchAll<T>(path: string): Promise<T[]> {
+  const separator = path.includes('?') ? '&' : '?';
+  const items: T[] = [];
+  for (let page = 1; ; page++) {
+    // La mayoría de los módulos anidan la paginación en `pagination`; /users la pone en la raíz.
+    const response = await saasApiFetch<{
+      data: T[];
+      pagination?: { totalPages: number };
+      totalPages?: number;
+    }>(`${path}${separator}page=${page}&limit=${PAGE_SIZE}`);
+    items.push(...response.data);
+    const totalPages = response.pagination?.totalPages ?? response.totalPages;
+    if (totalPages === undefined || page >= totalPages) return items;
+  }
+}
+
+const toPlan = (plan: SubscriptionPlan): SubscriptionPlan => ({
+  ...plan,
+  price: plan.price === null ? null : Number(plan.price),
+});
 
 export interface MerchantMetric {
   count: number;
@@ -204,11 +230,8 @@ export const saasService = {
   },
 
   async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-    const response = await saasApiFetch<{
-      data: SubscriptionPlan[];
-      pagination: { total: number; page: number; limit: number; totalPages: number };
-    }>('subscription-plan');
-    return response.data.map((plan) => ({ ...plan, price: Number(plan.price) }));
+    const plans = await saasFetchAll<SubscriptionPlan>('subscription-plan');
+    return plans.map(toPlan);
   },
 
   async createSubscriptionPlan(dto: CreateSubscriptionPlanDto): Promise<SubscriptionPlan> {
@@ -216,7 +239,7 @@ export const saasService = {
       method: 'POST',
       body: JSON.stringify(dto),
     });
-    return { ...response.data, price: Number(response.data.price) };
+    return toPlan(response.data);
   },
 
   async updateSubscriptionPlan(id: number, dto: UpdateSubscriptionPlanDto): Promise<SubscriptionPlan> {
@@ -227,7 +250,7 @@ export const saasService = {
         body: JSON.stringify(dto),
       },
     );
-    return { ...response.data, price: Number(response.data.price) };
+    return toPlan(response.data);
   },
 
   async deleteSubscriptionPlan(id: number): Promise<SubscriptionPlan> {
@@ -235,15 +258,11 @@ export const saasService = {
       `subscription-plan/${id}`,
       { method: 'DELETE' },
     );
-    return { ...response.data, price: Number(response.data.price) };
+    return toPlan(response.data);
   },
 
   async getApplications(): Promise<Application[]> {
-    const response = await saasApiFetch<{
-      data: Application[];
-      pagination: { total: number; page: number; limit: number; totalPages: number };
-    }>('applications');
-    return response.data;
+    return saasFetchAll<Application>('applications');
   },
 
   async updateApplication(
@@ -285,11 +304,7 @@ export const saasService = {
   },
 
   async getFeatures(): Promise<PlatformFeature[]> {
-    const response = await saasApiFetch<{
-      data: PlatformFeature[];
-      pagination: { total: number; page: number; limit: number; totalPages: number };
-    }>('features');
-    return response.data;
+    return saasFetchAll<PlatformFeature>('features');
   },
 
   async createFeature(dto: {
@@ -328,11 +343,7 @@ export const saasService = {
   },
 
   async getPlanApplications(planId: number): Promise<PlanApplication[]> {
-    const response = await saasApiFetch<{
-      data: PlanApplication[];
-      pagination: { total: number; page: number; limit: number; totalPages: number };
-    }>(`plan-applications?subscriptionPlanId=${planId}&limit=100`);
-    return response.data;
+    return saasFetchAll<PlanApplication>(`plan-applications?subscriptionPlanId=${planId}`);
   },
 
   async createPlanApplication(dto: CreatePlanApplicationDto): Promise<PlanApplication> {
@@ -352,11 +363,7 @@ export const saasService = {
   },
 
   async getPlanFeatures(planId: number): Promise<PlanFeature[]> {
-    const response = await saasApiFetch<{
-      data: PlanFeature[];
-      pagination: { total: number; page: number; limit: number; totalPages: number };
-    }>(`plan-features?subscriptionPlanId=${planId}&limit=100`);
-    return response.data;
+    return saasFetchAll<PlanFeature>(`plan-features?subscriptionPlanId=${planId}`);
   },
 
   async createPlanFeature(dto: CreatePlanFeatureDto): Promise<PlanFeature> {
@@ -419,6 +426,36 @@ export const saasService = {
     const response = await saasApiFetch<{ data: CompanyRegistryItem }>(
       `companies/${id}/status`,
       { method: 'PATCH', body: JSON.stringify({ status }) },
+    );
+    return response.data;
+  },
+
+  // ── Global Users Directory (SaaS Owner) ───────────────────────────────
+  // GET /users es solo para portal_admin: todos los usuarios de la plataforma.
+  async listPlatformUsers(): Promise<PlatformUser[]> {
+    return saasFetchAll<PlatformUser>('users');
+  },
+
+  async setPlatformUserActive(id: number, isActive: boolean): Promise<void> {
+    await saasApiFetch<unknown>(`users/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    });
+  },
+
+  // ── Company subscriptions (SaaS Owner) ────────────────────────────────
+  // La suscripción de la compañía es la que da el plan; merchant_subscription no decide el acceso.
+  async listCompanySubscriptions(): Promise<CompanySubscription[]> {
+    return saasFetchAll<CompanySubscription>('company-subscriptions');
+  },
+
+  async updateCompanySubscription(
+    id: number,
+    dto: UpdateCompanySubscriptionDto,
+  ): Promise<CompanySubscription> {
+    const response = await saasApiFetch<{ data: CompanySubscription }>(
+      `company-subscriptions/${id}`,
+      { method: 'PATCH', body: JSON.stringify(dto) },
     );
     return response.data;
   },

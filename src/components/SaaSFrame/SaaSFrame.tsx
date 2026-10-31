@@ -12,6 +12,8 @@ import { PlatformFeatureCatalogView } from './views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from './views/PlanApplicationsView';
 import { PlanFeaturesView } from './views/PlanFeaturesView';
 import { CompanyRegistryView } from './views/CompanyRegistryView';
+import { CompanySubscriptionsView } from './views/CompanySubscriptionsView';
+import { GlobalUsersDirectoryView } from './views/GlobalUsersDirectoryView';
 import { OrdersRegistryView } from './views/OrdersRegistryView';
 import { MerchantSettlementsView } from './views/MerchantSettlementsView';
 import type { SubscriptionPlan } from '../../types/subscription';
@@ -38,11 +40,6 @@ const FEATURE_BY_SAAS_TAB: Record<string, string> = Object.fromEntries(
 );
 // Options without a view yet in SaaS panel.
 const SAAS_PENDING_TABS: Record<string, { icon: string; title: string; desc: string }> = {
-  'subscription-merchant-subscriptions': {
-    icon: 'storefront',
-    title: 'Merchant Subscriptions',
-    desc: 'Which plan each merchant is subscribed to.',
-  },
   'subscription-subscription-applications': {
     icon: 'apps',
     title: 'Subscription Applications',
@@ -127,33 +124,6 @@ export const SaaSFrame: React.FC = () => {
       );
     }
 
-    // From the NavHubBar you arrive without a chosen plan: these two views need it.
-    if (
-      (activeTab === 'subscription-plan-applications' || activeTab === 'subscription-plan-features') &&
-      !selectedPlan
-    ) {
-      return (
-        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
-          <span className="material-symbols-outlined text-[#d51f2c] text-6xl" aria-hidden="true">
-            {activeTab === 'subscription-plan-features' ? 'checklist' : 'widgets'}
-          </span>
-          <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">
-            {activeTab === 'subscription-plan-features' ? 'Plan Features' : 'Plan Applications'}
-          </h2>
-          <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">
-            Select a subscription plan first.
-          </p>
-          <button
-            type="button"
-            onClick={() => setActiveTab('subscription')}
-            className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#ae001a] transition-colors duration-200"
-          >
-            Choose a plan
-          </button>
-        </div>
-      );
-    }
-
     if (activeTab === 'subscription') {
       return <SubscriptionPlansView onNavigate={handleNavigateView} />;
     }
@@ -166,19 +136,26 @@ export const SaaSFrame: React.FC = () => {
       return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
     }
 
-    if (activeTab === 'subscription-plan-applications' && selectedPlan) {
+    // The plan that grants access lives on the company subscription (company_subscription).
+    if (activeTab === 'subscription-merchant-subscriptions') {
+      return <CompanySubscriptionsView />;
+    }
+
+    // From Subscription Plans they open on the chosen plan; from the NavHubBar, without one,
+    // they offer their own plan selector.
+    if (activeTab === 'subscription-plan-applications') {
       return (
         <PlanApplicationsView
-          plan={selectedPlan}
+          plan={selectedPlan ?? undefined}
           onNavigate={handleNavigateView}
         />
       );
     }
 
-    if (activeTab === 'subscription-plan-features' && selectedPlan) {
+    if (activeTab === 'subscription-plan-features') {
       return (
         <PlanFeaturesView
-          plan={selectedPlan}
+          plan={selectedPlan ?? undefined}
           onNavigate={handleNavigateView}
         />
       );
@@ -186,6 +163,10 @@ export const SaaSFrame: React.FC = () => {
 
     if (activeTab === 'companies') {
       return <CompanyRegistryView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'users') {
+      return <GlobalUsersDirectoryView />;
     }
 
     if (activeTab === 'orders-registry') {
