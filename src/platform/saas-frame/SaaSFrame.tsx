@@ -17,33 +17,22 @@ import { GlobalUsersDirectoryView } from '@/modules/platform-saas/users/views/Gl
 import { OrdersRegistryView } from '@/modules/platform-saas/central-backoffice/views/OrdersRegistryView';
 import { MerchantSettlementsView } from '@/modules/platform-saas/central-backoffice/views/MerchantSettlementsView';
 import type { SubscriptionPlan } from '@/modules/platform-saas/subscription-system/types/subscription';
-import { navHubById } from '@/platform/navigation/module-nav-hubs';
+import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
-import { ModuleCommandHubView } from '@/platform/navigation/ModuleCommandHubView';
+import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
+import { navigationService, type NavCategory } from '@/platform/navigation/navigationService';
 
-// NavHubBar of the Subscription System in the SaaS panel. The options are the same as in
-// MerchantFrame(module-nav-hubs.ts, featuresIds from Features.txt), but this panel navigates with
-// its own tab IDs: translated in both directions.
-const SUBSCRIPTION_HUB_TAB = 'subscription-hub';
-const SAAS_TAB_BY_FEATURE: Record<string, string> = {
-  'apps-config': 'subscription-applications',
-  'features-control': 'subscription-features',
-  'merchant-subs-link': 'subscription-merchant-subscriptions',
-  'plan-apps-rules': 'subscription-plan-applications',
-  'plan-features-mapping': 'subscription-plan-features',
-  'sub-plans-core': 'subscription',
-  'sub-apps-mapping': 'subscription-subscription-applications',
-  'sub-payments-billing': 'subscription-payments',
-};
-const FEATURE_BY_SAAS_TAB: Record<string, string> = Object.fromEntries(
-  Object.entries(SAAS_TAB_BY_FEATURE).map(([feature, tab]) => [tab, feature]),
-);
-// Options without a view yet in SaaS panel.
+// Options without a dedicated component yet in SaaS panel.
 const SAAS_PENDING_TABS: Record<string, { icon: string; title: string; desc: string }> = {
-  'subscription-subscription-applications': {
+  'sub-apps-mapping': {
     icon: 'apps',
     title: 'Subscription Applications',
     desc: 'Applications active on each merchant subscription.',
+  },
+  'sub-payments-billing': {
+    icon: 'payments',
+    title: 'Subscription Payments',
+    desc: 'Subscription invoices and payment history.',
   },
 };
 
@@ -55,9 +44,40 @@ export const SaaSFrame: React.FC = () => {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [apiFailedToggle, setApiFailedToggle] = useState<boolean>(getSimulateApiFailure());
+  const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
+  const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  const currentUser = getStoredUser();
+  const isPortalUser = currentUser?.role === 'portal_user';
 
   // Derived indicator: user has typed but debounce period (300ms) has not settled yet
   const isSearching = Boolean(searchText && searchText !== debouncedSearchQuery);
+
+  // Load dynamic SaaS navigation catalog (GET /api/me/navigation?surface=saas_web)
+  useEffect(() => {
+    let ignore = false;
+    setIsNavLoading(true);
+
+    navigationService
+      .loadDynamicNavigation('saas_web')
+      .then((categories) => {
+        if (!ignore) {
+          setNavCategories(categories);
+          setIsNavLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('Error loading SaaS dynamic navigation:', err);
+        if (!ignore) {
+          setIsNavLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [refreshTrigger]);
 
   // Add classes to override limiting styles from original Vite template
   useEffect(() => {
@@ -98,18 +118,16 @@ export const SaaSFrame: React.FC = () => {
     setActiveTab(view);
   };
 
-  const subscriptionHub = navHubById('subscription-system-hub');
-  const showSubscriptionBar =
-    !!subscriptionHub && (activeTab === SUBSCRIPTION_HUB_TAB || activeTab in FEATURE_BY_SAAS_TAB);
-  const navigateSubscriptionHub = (id: string) => {
-    if (id === subscriptionHub?.hubId) setActiveTab(SUBSCRIPTION_HUB_TAB);
-    else if (SAAS_TAB_BY_FEATURE[id]) setActiveTab(SAAS_TAB_BY_FEATURE[id]);
-  };
-
-  // Render views according to active tab (AC 1.1 and 4.3)
+  // Render views according to active tab
   const renderContent = () => {
-    if (activeTab === SUBSCRIPTION_HUB_TAB && subscriptionHub) {
-      return <ModuleCommandHubView hub={subscriptionHub} onNavigate={navigateSubscriptionHub} />;
+    const activeCommandHub = navHubById(activeTab);
+    if (activeCommandHub) {
+      return (
+        <GenericModuleNavHub
+          hub={activeCommandHub}
+          onNavigate={(featId) => setActiveTab(featId)}
+        />
+      );
     }
 
     const pending = SAAS_PENDING_TABS[activeTab];
@@ -124,26 +142,26 @@ export const SaaSFrame: React.FC = () => {
       );
     }
 
-    if (activeTab === 'subscription') {
+    if (activeTab === 'sub-plans-core' || activeTab === 'subscription') {
       return <SubscriptionPlansView onNavigate={handleNavigateView} />;
     }
 
-    if (activeTab === 'subscription-applications') {
+    if (activeTab === 'apps-config' || activeTab === 'subscription-applications') {
       return <PlatformApplicationsView onNavigate={handleNavigateView} />;
     }
 
-    if (activeTab === 'subscription-features') {
+    if (activeTab === 'features-control' || activeTab === 'subscription-features') {
       return <PlatformFeatureCatalogView onNavigate={handleNavigateView} />;
     }
 
     // The plan that grants access lives on the company subscription (company_subscription).
-    if (activeTab === 'subscription-merchant-subscriptions') {
+    if (activeTab === 'merchant-subs-link' || activeTab === 'subscription-merchant-subscriptions') {
       return <CompanySubscriptionsView />;
     }
 
     // From Subscription Plans they open on the chosen plan; from the NavHubBar, without one,
     // they offer their own plan selector.
-    if (activeTab === 'subscription-plan-applications') {
+    if (activeTab === 'plan-apps-rules' || activeTab === 'subscription-plan-applications') {
       return (
         <PlanApplicationsView
           plan={selectedPlan ?? undefined}
@@ -152,7 +170,7 @@ export const SaaSFrame: React.FC = () => {
       );
     }
 
-    if (activeTab === 'subscription-plan-features') {
+    if (activeTab === 'plan-features-mapping' || activeTab === 'subscription-plan-features') {
       return (
         <PlanFeaturesView
           plan={selectedPlan ?? undefined}
@@ -161,11 +179,11 @@ export const SaaSFrame: React.FC = () => {
       );
     }
 
-    if (activeTab === 'companies') {
+    if (activeTab === 'companies' || activeTab === 'companies-hub') {
       return <CompanyRegistryView onNavigate={handleNavigateView} />;
     }
 
-    if (activeTab === 'users') {
+    if (activeTab === 'users' || activeTab === 'users-auth-profiles' || activeTab === 'users-hub') {
       return <GlobalUsersDirectoryView />;
     }
 
@@ -177,82 +195,43 @@ export const SaaSFrame: React.FC = () => {
       return <MerchantSettlementsView onNavigate={handleNavigateView} />;
     }
 
-    if (
-      activeTab === 'subscription-payments' ||
-      activeTab === 'subscription-live-installs'
-    ) {
-      const subConfig = {
-        'subscription-payments': {
-          icon: 'payments',
-          title: 'Subscription Payments',
-          desc: 'Centralized billing book tracking payment logs from active merchants.',
-          backLabel: 'Back to Subscription Plans',
-          backTab: 'subscription',
-        },
-        'subscription-live-installs': {
-          icon: 'monitoring',
-          title: 'Active Live Installs',
-          desc: 'Deployment audit screen — monitor live merchant profiles mapped to individual applications.',
-          backLabel: 'Back to Applications',
-          backTab: 'subscription-applications',
-        },
-      }[activeTab as 'subscription-payments' | 'subscription-live-installs'];
+    if (activeTab === 'dashboard' || activeTab === 'saas-dashboard') {
       return (
-        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
-          <span className="material-symbols-outlined text-[#d51f2c] text-6xl">{subConfig.icon}</span>
-          <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">{subConfig.title}</h2>
-          <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">{subConfig.desc}</p>
-          <button
-            onClick={() => setActiveTab(subConfig.backTab)}
-            className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#d51f2c] transition-all"
-          >
-            {subConfig.backLabel}
-          </button>
-        </div>
-      );
-    }
-
-    if (activeTab !== 'dashboard') {
-      return (
-        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
-          <span className="material-symbols-outlined text-[#d51f2c] text-6xl">
-            {activeTab === 'companies' && 'corporate_fare'}
-            {activeTab === 'merchants' && 'store'}
-            {activeTab === 'users' && 'group'}
-            {activeTab === 'reports' && 'description'}
-          </span>
-          <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">
-            {activeTab === 'companies' && 'Companies Registry'}
-            {activeTab === 'merchants' && 'Merchants Registry'}
-            {activeTab === 'users' && 'Platform Users'}
-            {activeTab === 'reports' && 'System Reports'}
-          </h2>
-          <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">
-            This virtual section simulates the SPA route for{' '}
-            <strong className="text-[#d51f2c]">/{activeTab}</strong>. All navigation occurs
-            reactively without physical page reloads.
-          </p>
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#d51f2c] transition-all"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+        <SaasOverviewContent
+          refreshTrigger={refreshTrigger}
+          onNavigateToView={handleNavigateView}
+        />
       );
     }
 
     return (
-      <SaasOverviewContent
-        refreshTrigger={refreshTrigger}
-        onNavigateToView={handleNavigateView}
-      />
+      <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
+        <span className="material-symbols-outlined text-[#d51f2c] text-6xl">
+          {activeTab === 'merchants' && 'store'}
+          {activeTab === 'reports' && 'description'}
+          {activeTab !== 'merchants' && activeTab !== 'reports' && 'construction'}
+        </span>
+        <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">
+          {activeTab === 'merchants' ? 'Merchants Registry' : activeTab === 'reports' ? 'System Reports' : 'Section In Development'}
+        </h2>
+        <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">
+          Interactive section view for <strong className="text-[#d51f2c]">/{activeTab}</strong>.
+        </p>
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#d51f2c] transition-all cursor-pointer"
+        >
+          Back to Dashboard
+        </button>
+      </div>
     );
   };
 
   if (!saasAuthenticated) {
     return <SaasLoginOverlay onSuccess={() => setSaasAuthenticated(true)} />;
   }
+
+  const activeHub = navHubForFeature(activeTab);
 
   return (
     <div className="text-on-background antialiased font-sans bg-[#f1ece4] min-h-screen text-[14px]">
@@ -265,51 +244,139 @@ export const SaaSFrame: React.FC = () => {
               POINT OF SALE
             </h2>
             <span className="text-[10px] font-bold uppercase tracking-widest text-[#d51f2c] mt-1">
-              Backoffice
+              Backoffice SaaS
             </span>
           </div>
         </div>
 
-        <nav className="flex-1 px-2 space-y-1 overflow-y-auto sidebar-scroll">
-          <div>
-            {/* Category Header */}
-            <div className="border-l-2 border-[#d51f2c] bg-white/10 text-white font-semibold pl-3 py-2.5 flex items-center gap-3 cursor-pointer">
-              <span className="material-symbols-outlined text-[#d51f2c]">dashboard</span>
-              <span className="font-sans text-[13px] tracking-wide uppercase">Platform SaaS</span>
+        <nav className="flex-1 px-2 space-y-1 overflow-y-auto sidebar-scroll py-2">
+          {isNavLoading && navCategories.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-white/40 space-y-2">
+              <span className="material-symbols-outlined text-2xl animate-spin text-white/30">
+                sync
+              </span>
+              <p>Loading platform navigation...</p>
             </div>
+          ) : (
+            navCategories.map((cat) => {
+              const isCatExpanded = expandedCategories[cat.id] ?? true;
+              const isCatActive = cat.applications.some(
+                (app) =>
+                  app.features.some((f) => f.id === activeTab) ||
+                  activeTab === `${app.id}-hub` ||
+                  activeTab === app.id,
+              );
 
-            {/* Sub-items (AC 1.1 y 1.2) */}
-            <div className="mt-1 ml-4 border-l border-white/20 flex flex-col space-y-1">
-              {[
-                { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-                { id: 'subscription', label: 'Subscription Plans', icon: 'workspace_premium' },
-                { id: 'companies', label: 'Companies', icon: 'corporate_fare' },
-                { id: 'orders-registry', label: 'Orders Registry', icon: 'receipt_long' },
-                { id: 'merchant-settlements', label: 'Merchant Settlements', icon: 'account_balance_wallet' },
-                { id: 'merchants', label: 'Merchants', icon: 'store' },
-                { id: 'users', label: 'Users', icon: 'group' },
-                { id: 'reports', label: 'Reports', icon: 'description' },
-              ].map((item) => {
-                const isActive =
-                  activeTab === item.id ||
-                  (item.id === 'subscription' && activeTab.startsWith('subscription-'));
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`pl-4 pr-3 py-2 text-[13px] text-left transition-colors flex items-center gap-2.5 w-full ${
-                      isActive
-                        ? 'text-[#d51f2c] font-semibold bg-white/5 border-l-2 border-[#d51f2c] -ml-[1px]'
-                        : 'text-white/70 hover:text-white hover:bg-white/5'
+              return (
+                <div key={cat.id} className="w-full text-left">
+                  {/* Category Header */}
+                  <div
+                    onClick={() => {
+                      setExpandedCategories((prev) => ({
+                        ...prev,
+                        [cat.id]: !isCatExpanded,
+                      }));
+                    }}
+                    className={`border-l-2 pl-3 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
+                      isCatActive
+                        ? 'border-[#d51f2c] bg-white/10 text-white font-semibold'
+                        : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`material-symbols-outlined text-[20px] ${
+                          isCatActive ? 'text-[#d51f2c]' : 'text-white/70'
+                        }`}
+                      >
+                        {cat.icon || 'dashboard'}
+                      </span>
+                      <span className="font-sans text-[13px] tracking-wide uppercase font-bold">
+                        {cat.name}
+                      </span>
+                    </div>
+                    <span className="material-symbols-outlined text-[16px] text-white/40 pr-2">
+                      {isCatExpanded ? 'expand_more' : 'chevron_right'}
+                    </span>
+                  </div>
+
+                  {/* Sub-items / Applications & Features */}
+                  {isCatExpanded && (
+                    <div className="mt-1 ml-4 border-l border-white/20 flex flex-col space-y-0.5">
+                      {cat.applications.map((app) => {
+                        const isAppActive =
+                          activeTab === app.id ||
+                          activeTab === `${app.id}-hub` ||
+                          app.features.some((f) => f.id === activeTab);
+
+                        if (app.features.length <= 1) {
+                          const targetTab = app.features[0]?.id ?? app.id;
+                          return (
+                            <button
+                              key={app.id}
+                              onClick={() => setActiveTab(targetTab)}
+                              className={`pl-4 pr-3 py-2 text-[13px] text-left transition-colors flex items-center gap-2.5 w-full cursor-pointer ${
+                                isAppActive
+                                  ? 'text-[#d51f2c] font-semibold bg-white/5 border-l-2 border-[#d51f2c] -ml-[1px]'
+                                  : 'text-white/70 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-[18px]">
+                                {app.icon || 'circle'}
+                              </span>
+                              <span>{app.name}</span>
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <div key={app.id} className="flex flex-col">
+                            <button
+                              onClick={() => setActiveTab(`${app.id}-hub`)}
+                              className={`pl-4 pr-3 py-2 text-[13px] text-left transition-colors flex items-center justify-between w-full cursor-pointer ${
+                                isAppActive
+                                  ? 'text-[#d51f2c] font-semibold bg-white/5 border-l-2 border-[#d51f2c] -ml-[1px]'
+                                  : 'text-white/70 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 truncate">
+                                <span className="material-symbols-outlined text-[18px]">
+                                  {app.icon || 'grid_view'}
+                                </span>
+                                <span className="truncate">{app.name}</span>
+                              </div>
+                              <span className="material-symbols-outlined text-[14px] text-white/40">
+                                arrow_forward
+                              </span>
+                            </button>
+
+                            <div className="ml-6 border-l border-white/10 flex flex-col space-y-0.5 my-1">
+                              {app.features.map((feat) => {
+                                const isFeatActive = activeTab === feat.id;
+                                return (
+                                  <button
+                                    key={feat.id}
+                                    onClick={() => setActiveTab(feat.id)}
+                                    className={`pl-3 pr-2 py-1.5 text-[12px] text-left transition-colors flex items-center gap-2 w-full cursor-pointer ${
+                                      isFeatActive
+                                        ? 'text-white font-semibold bg-white/10 border-l-2 border-[#d51f2c] -ml-[1px]'
+                                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                                    }`}
+                                  >
+                                    <span className="truncate">{feat.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </nav>
 
         {/* Demo Controls inside Sidebar */}
@@ -381,6 +448,14 @@ export const SaaSFrame: React.FC = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
               Query: "{debouncedSearchQuery}"
             </div>
+          )}
+
+          {/* Read-Only Badge for portal_user */}
+          {isPortalUser && (
+            <span className="px-2.5 py-1 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-sm mr-1">
+              <span className="material-symbols-outlined text-[14px]">visibility</span>
+              Read Only
+            </span>
           )}
 
           {/* Super Admin Frame Switcher to Merchant */}
@@ -480,8 +555,7 @@ export const SaaSFrame: React.FC = () => {
                   : activeTab === 'subscription-live-installs' ? 'Live Installs'
                   : activeTab === 'subscription-plan-applications' ? 'Plan Applications'
                   : activeTab === 'subscription-plan-features' ? 'Plan Features'
-                  : activeTab === SUBSCRIPTION_HUB_TAB ? 'Subscription System'
-                  : SAAS_PENDING_TABS[activeTab]?.title ?? activeTab}
+                  : navHubById(activeTab)?.title ?? (SAAS_PENDING_TABS[activeTab]?.title ?? activeTab)}
               </h1>
               <p className="text-body-md text-[#666666] mt-1">
                 {activeTab === 'dashboard'
@@ -492,25 +566,23 @@ export const SaaSFrame: React.FC = () => {
                     ? 'Every order collected across all merchant restaurants, feeding the daily cash settlements.'
                   : activeTab === 'merchant-settlements'
                     ? 'Daily cash payouts: the net revenue collected from each merchant’s orders that we transfer back to them.'
-                  : activeTab === 'subscription'
+                  : activeTab === 'subscription' || activeTab === 'sub-plans-core'
                     ? 'Manage subscription tiers, pricing models, and billing cadences for your platform.'
-                    : activeTab === 'subscription-applications'
+                    : activeTab === 'subscription-applications' || activeTab === 'apps-config'
                       ? 'Manage software ecosystems and applications linked to subscription plans.'
-                      : activeTab === 'subscription-features'
+                      : activeTab === 'subscription-features' || activeTab === 'features-control'
                         ? 'Configure master feature flags and platform capability tables.'
-                        : activeTab === 'subscription-payments'
+                        : activeTab === 'subscription-payments' || activeTab === 'sub-payments-billing'
                           ? 'Track payment logs and incoming cash movements from active merchants.'
                           : activeTab === 'subscription-live-installs'
                             ? 'Monitor live merchant profiles mapped to individual applications.'
-                            : activeTab === 'subscription-plan-applications'
+                            : activeTab === 'subscription-plan-applications' || activeTab === 'plan-apps-rules'
                               ? `Applications bundled into the "${selectedPlan?.name}" subscription tier.`
-                              : activeTab === 'subscription-plan-features'
+                              : activeTab === 'subscription-plan-features' || activeTab === 'plan-features-mapping'
                                 ? `Feature entitlements and quantitative limits bundled into the "${selectedPlan?.name}" subscription tier.`
-                                : activeTab === SUBSCRIPTION_HUB_TAB
-                                  ? 'Plans, the applications and features they unlock, and merchant subscriptions and payments.'
-                                  : SAAS_PENDING_TABS[activeTab]
-                                    ? SAAS_PENDING_TABS[activeTab].desc
-                                    : `Interactive visualization and management for /${activeTab}.`}
+                                : navHubById(activeTab)?.description ??
+                                  (SAAS_PENDING_TABS[activeTab]?.desc ??
+                                    `Interactive visualization and management for /${activeTab}.`)}
               </p>
             </div>
             {activeTab === 'dashboard' && (
@@ -535,14 +607,14 @@ export const SaaSFrame: React.FC = () => {
 
           {/* Dynamic SPA view rendering (AC 1.1) */}
           {renderContent()}
-          {showSubscriptionBar && subscriptionHub ? (
+          {activeHub ? (
             <>
               {/* The bar is `fixed`: this gap prevents it from covering the end of the view. */}
               <div aria-hidden="true" className="h-16 shrink-0" />
               <ModuleNavHubBar
-                hub={subscriptionHub}
-                currentFeatureId={FEATURE_BY_SAAS_TAB[activeTab] ?? ''}
-                onNavigate={navigateSubscriptionHub}
+                hub={activeHub}
+                currentFeatureId={activeTab}
+                onNavigate={(id) => setActiveTab(id)}
               />
             </>
           ) : null}
