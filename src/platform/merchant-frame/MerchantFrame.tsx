@@ -35,7 +35,7 @@ import type { JournalEntry } from '@/modules/core/financial-engine/types/account
 import type { SupplierPayment } from '@/modules/finance-hr/accounts-payable/types/accounts-payable';
 import { navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 import { ModuleNavHubBar } from '@/platform/merchant-frame/layout/ModuleNavHubBar';
-import { ModuleCommandHubView } from '@/platform/navigation/ModuleCommandHubView';
+import { GenericModuleNavHub } from '@/platform/navigation/GenericModuleNavHub';
 import { clearAuthSession } from '@/platform/auth/lib/auth-storage';
 import { getNavFromPath, resolveStaffTarget } from '@/platform/merchant-frame/merchant-routes';
 import { renderMerchantView } from '@/platform/merchant-frame/merchant-view-registry';
@@ -163,24 +163,31 @@ export const MerchantFrame: React.FC = () => {
       .filter((cat): cat is NavCategory => cat !== null);
   }, [navCategories, sidebarSearchQuery]);
 
+  const [isNavLoading, setIsNavLoading] = useState<boolean>(true);
+
   useEffect(() => {
     let ignore = false;
-    if (profile) {
-      navigationService
-        .loadAndParseNavigation(profile.Plan_id, profile.role)
-        .then((menu) => {
-          if (!ignore) {
-            setNavCategories(menu);
-          }
-        })
-        .catch((err: unknown) => {
-          console.error('Error loading dynamic menu', err);
-        });
-    }
+    setIsNavLoading(true);
+
+    navigationService
+      .loadDynamicNavigation('merchant_web')
+      .then((menu) => {
+        if (!ignore) {
+          setNavCategories(menu);
+          setIsNavLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('Error loading dynamic navigation menu', err);
+        if (!ignore) {
+          setIsNavLoading(false);
+        }
+      });
+
     return () => {
       ignore = true;
     };
-  }, [profile, refreshTrigger]);
+  }, [refreshTrigger]);
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
@@ -399,7 +406,7 @@ export const MerchantFrame: React.FC = () => {
 
     const commandHub = navHubById(activeTab);
     if (commandHub) {
-      return <ModuleCommandHubView hub={commandHub} onNavigate={navigateToFeature} />;
+      return <GenericModuleNavHub hub={commandHub} onNavigate={navigateToFeature} />;
     }
 
     if (activeTab !== 'dashboard') {
@@ -463,19 +470,41 @@ export const MerchantFrame: React.FC = () => {
         isSidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
       }`}>
         <nav className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll py-4 space-y-1 text-left">
-          {filteredNavCategories.length === 0 ? (
+          {navCategories.length === 0 ? (
+            isNavLoading ? (
+              <div className="px-5 py-8 text-center text-xs text-white/50 space-y-2">
+                <span className="material-symbols-outlined text-2xl text-white/30 animate-spin">
+                  sync
+                </span>
+                <p className="text-[11px] text-white/40">Loading navigation menu...</p>
+              </div>
+            ) : (
+              <div className="px-5 py-10 text-center text-xs text-white/60 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-amber-500">
+                  <span className="material-symbols-outlined text-2xl">assignment_late</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-white/90 text-sm">No Active Assignments</p>
+                  <p className="text-[11px] text-white/50 mt-1 leading-relaxed">
+                    No shift position or active modules have been assigned to your account. Please contact your restaurant branch manager.
+                  </p>
+                </div>
+              </div>
+            )
+          ) : filteredNavCategories.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-white/50 space-y-1">
               <span className="material-symbols-outlined text-2xl text-white/30">search_off</span>
               <p className="font-semibold">No menu items match</p>
               <p className="text-[10px] text-white/40">"{sidebarSearchQuery}"</p>
             </div>
-          ) : profile?.role === 'SaaS Owner' ||
-            profile?.role === 'portal_admin' ||
-            profile?.role === 'portal_user' ? (
+          ) : (
             filteredNavCategories.map((cat) => {
               const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
-              const hasActiveTab = cat.applications.some(app =>
-                app.features.some(f => f.id === activeTab)
+              const hasActiveTab = cat.applications.some(
+                (app) =>
+                  app.features.some((f) => f.id === activeTab) ||
+                  navHubById(activeTab)?.appId === app.id ||
+                  activeTab === `${app.id}-hub`,
               );
               const isCatActive = activeCategory === cat.id || hasActiveTab;
 
@@ -484,14 +513,14 @@ export const MerchantFrame: React.FC = () => {
                   <div
                     onClick={() => {
                       const isCurrentlyExpanded = !!expandedCategories[cat.id];
-                      setExpandedCategories(prev => ({
+                      setExpandedCategories((prev) => ({
                         ...prev,
-                        [cat.id]: !prev[cat.id]
+                        [cat.id]: !prev[cat.id],
                       }));
                       if (isCurrentlyExpanded) {
-                        setExpandedApps(prevApps => {
+                        setExpandedApps((prevApps) => {
                           const nextApps = { ...prevApps };
-                          cat.applications.forEach(app => {
+                          cat.applications.forEach((app) => {
                             delete nextApps[app.id];
                           });
                           return nextApps;
@@ -518,282 +547,98 @@ export const MerchantFrame: React.FC = () => {
                   {isCatExpanded && (
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
-                        const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isShiftsApp = app.id === 'shifts' || app.name === 'Shifts';
-                        const isTipsApp = app.id === 'tips' || app.name === 'Tips';
-                        const isConfigApp = app.id === 'configuration' || app.name === 'Configuration';
-                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
-                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
-                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
-                        const isQRCodeApp = app.id === 'qr-code' || app.name === 'QR Code System';
-                        const isDirectHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp || isQRCodeApp;
-                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
-                        const isAppSelected = isKDSApp
-                          ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : isShiftsApp
-                          ? ['shifts-hub', 'shift-assignment', 'shifts', 'daily-timeline', 'staff-roster', 'staff-swaps', 'open-shifts', 'labor-forecasting'].includes(activeTab)
-                          : isTipsApp
-                          ? ['tips-hub', 'tips', 'tips-ledger', 'tips-pools', 'tip-pools', 'tip-pool-members', 'tips-pool-members', 'tips-allocations', 'tip-allocations', 'tip-settlements', 'tips-settlements', 'tip-movements', 'tips-cash-movements'].includes(activeTab)
-                          : isConfigApp
-                          ? ['configuration-hub', 'merchant-overtime-rules', 'merchant-payroll-rules', 'merchant-tax-rules', 'merchant-tips-rules'].includes(activeTab)
-                          : isProductsApp
-                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
-                          : isRawMaterialsApp
-                          ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
-                          : isOnlineOrderingApp
-                          ? ['online-ordering-hub', 'online-ordering-dashboard', 'online-stores', 'online-payments', 'online-menus', 'online-menu-categories', 'online-menu-items', 'online-orders', 'online-order-items', 'online-delivery-info'].includes(activeTab)
-                          : isQRCodeApp
-                          ? ['qr-code-hub', 'qr-code-locations', 'qr-code-menu-items', 'qr-code-menu-sections', 'qr-code-menus', 'qr-code-orders', 'qr-order-items', 'qr-deployments'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
+                        const appHub = navHubById(`${app.id}-hub`) ?? navHubById(app.id);
+                        const hubId = appHub?.hubId ?? `${app.id}-hub`;
+                        const isAppSelected =
+                          app.features.some((f) => f.id === activeTab) ||
+                          navHubById(activeTab)?.appId === app.id ||
+                          activeTab === hubId ||
+                          activeTab === app.id;
+                        const isAppExpanded =
+                          sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id];
+
+                        const handleNavigateTarget = (targetId: string, route?: string) => {
+                          setActiveCategory(cat.id);
+                          setActiveTab(targetId);
+                          if (route) {
+                            navigate(route, { state: { activeTab: targetId, activeCategory: cat.id } });
+                          } else if (targetId === 'products') {
+                            navigate('/dashboard/products');
+                          } else if (targetId === 'categories') {
+                            navigate('/dashboard/categories');
+                          } else if (targetId === 'merchant-directory') {
+                            navigate('/dashboard/merchants');
+                          } else if (targetId === 'user-management') {
+                            navigate('/dashboard/users');
+                          } else if (targetId === 'company-profile') {
+                            navigate('/dashboard/company-profile');
+                          } else if (targetId === 'company-configurations') {
+                            navigate('/dashboard/company-configurations');
+                          } else if (targetId === 'online-stores') {
+                            navigate('/dashboard/online-stores');
+                          } else {
+                            navigate('/dashboard', { state: { activeTab: targetId, activeCategory: cat.id } });
+                          }
+                        };
 
                         return (
                           <div key={app.id} className="w-full text-left">
                             <div
-                              onClick={() => {
-                                if (isKDSApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('kds-dashboard');
-                                  navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
-                                } else if (isShiftsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('shifts-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'shifts-hub', activeCategory: cat.id } });
-                                } else if (isTipsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('tips-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'tips-hub', activeCategory: cat.id } });
-                                } else if (isConfigApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('configuration-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'configuration-hub', activeCategory: cat.id } });
-                                } else if (isProductsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('inventory-dashboard');
-                                  navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
-                                } else if (isRawMaterialsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('raw-materials-dashboard');
-                                  navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
-                                } else if (isOnlineOrderingApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('online-ordering-hub');
-                                  navigate('/online-ordering', { state: { activeTab: 'online-ordering-hub', activeCategory: cat.id } });
-                                } else if (isQRCodeApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('qr-code-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'qr-code-hub', activeCategory: cat.id } });
-                                } else {
-                                  setExpandedApps(prev => ({
-                                    ...prev,
-                                    [app.id]: !prev[app.id]
-                                  }));
-                                }
-                              }}
-                              className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
-                                isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
+                              className={`ml-6 mr-3 py-2 px-3 text-[13px] flex items-center justify-between cursor-pointer rounded hover:bg-white/5 transition-colors font-sans duration-200 ${
+                                isAppSelected
+                                  ? 'text-[#d51f2c] font-semibold bg-white/5'
+                                  : 'text-white/70 hover:text-white'
                               }`}
                             >
-                              <span
-                                className={`w-1 h-1 rounded-full ${
-                                  isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/50'
-                                }`}
-                              ></span>
-                              <span>{app.name}</span>
-                            </div>
-
-                            {isAppExpanded && !isDirectHubApp && (
-                              <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
-                                {app.features.map((feat) => {
-                                  const isFeatActive = activeTab === feat.id;
-                                  return (
-                                    <div
-                                      key={feat.id}
-                                      onClick={() => {
-                                        setActiveCategory(cat.id);
-                                        setActiveTab(feat.id);
-                                        navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
-                                      }}
-                                      className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
-                                        isFeatActive
-                                          ? 'bg-white/50 text-[#222222] font-semibold border-l-2 border-[#222222] -ml-[2px]'
-                                          : 'text-white/60 hover:text-white hover:bg-white/5'
-                                      }`}
-                                    >
-                                      {feat.name}
-                                    </div>
-                                  );
-                                })}
+                              <div
+                                onClick={() => {
+                                  if (app.features.length === 1) {
+                                    handleNavigateTarget(app.features[0].id, app.features[0].route);
+                                  } else {
+                                    handleNavigateTarget(hubId);
+                                  }
+                                }}
+                                className="flex items-center gap-2.5 flex-1 min-w-0"
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/40'
+                                  }`}
+                                />
+                                <span className="truncate">{app.name}</span>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          ) : (
-            filteredNavCategories.map((cat) => {
-              const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
-              const hasActiveTab = cat.applications.some(app => 
-                app.features.some(f => f.id === activeTab)
-              );
-              const isCatActive = activeCategory === cat.id || hasActiveTab;
 
-              return (
-                <div key={cat.id} className="w-full text-left">
-                  <div
-                    onClick={() => {
-                      const isCurrentlyExpanded = !!expandedCategories[cat.id];
-                      setExpandedCategories(prev => ({
-                        ...prev,
-                        [cat.id]: !prev[cat.id]
-                      }));
-                      if (isCurrentlyExpanded) {
-                        setExpandedApps(prevApps => {
-                          const nextApps = { ...prevApps };
-                          cat.applications.forEach(app => {
-                            delete nextApps[app.id];
-                          });
-                          return nextApps;
-                        });
-                      }
-                      setActiveCategory(cat.id);
-                    }}
-                    className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
-                      isCatActive
-                        ? 'border-[#d51f2c] bg-white/10 text-white font-semibold'
-                        : 'border-transparent text-white/70 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <span 
-                      className={`material-symbols-outlined text-[20px] transition-colors duration-200 ${
-                        isCatActive ? 'text-[#d51f2c]' : 'text-white/70'
-                      }`}
-                    >
-                      {cat.icon}
-                    </span>
-                    <span className="font-sans text-[13px] tracking-tight">{cat.name}</span>
-                  </div>
-
-                  {isCatExpanded && (
-                    <div className="mt-1 flex flex-col space-y-1">
-                      {cat.applications.map((app) => {
-                        const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
-                        const isShiftsApp = app.id === 'shifts' || app.name === 'Shifts';
-                        const isTipsApp = app.id === 'tips' || app.name === 'Tips';
-                        const isConfigApp = app.id === 'configuration' || app.name === 'Configuration';
-                        const isProductsApp = app.id === 'products-inventory' || app.name === 'Products' || app.name === 'Products/Inventory System';
-                        const isRawMaterialsApp = app.id === 'raw-materials' || app.name === 'Raw Materials';
-                        const isOnlineOrderingApp = app.id === 'online-ordering' || app.name === 'Online Ordering System' || app.name === 'Online Ordering';
-                        const isQRCodeApp = app.id === 'qr-code' || app.name === 'QR Code System';
-                        const isDirectHubApp = isKDSApp || isShiftsApp || isTipsApp || isConfigApp || isProductsApp || isRawMaterialsApp || isOnlineOrderingApp || isQRCodeApp;
-                        const isAppExpanded = !isDirectHubApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
-                        const isAppSelected = isKDSApp
-                          ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
-                          : isShiftsApp
-                          ? ['shifts-hub', 'shift-assignment', 'shifts', 'daily-timeline', 'staff-roster', 'staff-swaps', 'open-shifts', 'labor-forecasting'].includes(activeTab)
-                          : isTipsApp
-                          ? ['tips-hub', 'tips', 'tips-ledger', 'tips-pools', 'tip-pools', 'tip-pool-members', 'tips-pool-members', 'tips-allocations', 'tip-allocations', 'tip-settlements', 'tips-settlements', 'tip-movements', 'tips-cash-movements'].includes(activeTab)
-                          : isConfigApp
-                          ? ['configuration-hub', 'merchant-overtime-rules', 'merchant-payroll-rules', 'merchant-tax-rules', 'merchant-tips-rules'].includes(activeTab)
-                          : isProductsApp
-                          ? ['inventory-dashboard', 'products-inventory-hub', 'categories', 'modifiers', 'products', 'variants'].includes(activeTab)
-                          : isRawMaterialsApp
-                          ? ['raw-materials-dashboard', 'raw-materials-hub', 'purchase-orders', 'stock-movements', 'raw-materials', 'raw-material-categories', 'locations', 'movements'].includes(activeTab)
-                          : isOnlineOrderingApp
-                          ? ['online-ordering-hub', 'online-ordering-dashboard', 'online-stores', 'online-payments', 'online-menus', 'online-menu-categories', 'online-menu-items', 'online-orders', 'online-order-items', 'online-delivery-info'].includes(activeTab)
-                          : isQRCodeApp
-                          ? ['qr-code-hub', 'qr-code-locations', 'qr-code-menu-items', 'qr-code-menu-sections', 'qr-code-menus', 'qr-code-orders', 'qr-order-items', 'qr-deployments'].includes(activeTab)
-                          : app.features.some(f => f.id === activeTab) || navHubById(activeTab)?.appId === app.id;
-
-                        return (
-                          <div key={app.id} className="w-full text-left">
-                            <div
-                              onClick={() => {
-                                if (isKDSApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('kds-dashboard');
-                                  navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
-                                } else if (isShiftsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('shifts-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'shifts-hub', activeCategory: cat.id } });
-                                } else if (isTipsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('tips-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'tips-hub', activeCategory: cat.id } });
-                                } else if (isConfigApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('configuration-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'configuration-hub', activeCategory: cat.id } });
-                                } else if (isProductsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('inventory-dashboard');
-                                  navigate('/dashboard', { state: { activeTab: 'inventory-dashboard', activeCategory: cat.id } });
-                                } else if (isRawMaterialsApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('raw-materials-dashboard');
-                                  navigate('/dashboard', { state: { activeTab: 'raw-materials-dashboard', activeCategory: cat.id } });
-                                } else if (isOnlineOrderingApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('online-ordering-hub');
-                                  navigate('/online-ordering', { state: { activeTab: 'online-ordering-hub', activeCategory: cat.id } });
-                                } else if (isQRCodeApp) {
-                                  setActiveCategory(cat.id);
-                                  setActiveTab('qr-code-hub');
-                                  navigate('/dashboard', { state: { activeTab: 'qr-code-hub', activeCategory: cat.id } });
-                                } else {
-                                  setExpandedApps(prev => ({
-                                    ...prev,
-                                    [app.id]: !prev[app.id]
-                                  }));
-                                }
-                              }}
-                              className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
-                                isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
-                              }`}
-                            >
-                              <span 
-                                className={`w-1 h-1 rounded-full ${
-                                  isAppSelected ? 'bg-[#d51f2c]' : 'bg-white/50'
-                                }`}
-                              ></span>
-                              <span>{app.name}</span>
+                              {app.features.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedApps((prev) => ({
+                                      ...prev,
+                                      [app.id]: !prev[app.id],
+                                    }));
+                                  }}
+                                  className="p-1 text-white/40 hover:text-white transition-colors"
+                                  title={isAppExpanded ? 'Collapse submenus' : 'Expand submenus'}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">
+                                    {isAppExpanded ? 'expand_more' : 'chevron_right'}
+                                  </span>
+                                </button>
+                              )}
                             </div>
 
-                            {isAppExpanded && !isDirectHubApp && (
-                              <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
+                            {isAppExpanded && app.features.length > 1 && (
+                              <div className="ml-12 mt-1 border-l border-white/10 space-y-0.5">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;
                                   return (
                                     <div
                                       key={feat.id}
-                                      onClick={() => {
-                                        setActiveCategory(cat.id);
-                                        setActiveTab(feat.id);
-                                        if (feat.id === 'products') {
-                                          navigate('/dashboard/products');
-                                        } else if (feat.id === 'categories') {
-                                          navigate('/dashboard/categories');
-                                        } else if (feat.id === 'merchant-directory') {
-                                          navigate('/dashboard/merchants');
-                                        } else if (feat.id === 'user-management') {
-                                          navigate('/dashboard/users');
-                                        } else if (feat.id === 'company-profile') {
-                                          navigate('/dashboard/company-profile');
-                                        } else if (feat.id === 'company-configurations') {
-                                          navigate('/dashboard/company-configurations');
-                                        } else if (feat.id === 'online-stores') {
-                                          navigate('/dashboard/online-stores');
-                                        } else {
-                                          navigate('/dashboard', { state: { activeTab: feat.id, activeCategory: cat.id } });
-                                        }
-                                      }}
+                                      onClick={() => handleNavigateTarget(feat.id, feat.route)}
                                       className={`pl-4 py-1.5 text-body-sm cursor-pointer transition-all duration-200 ${
                                         isFeatActive
-                                          ? 'bg-white/50 text-[#222222] font-semibold border-l-2 border-[#222222] -ml-[2px]'
+                                          ? 'bg-white/20 text-white font-semibold border-l-2 border-[#d51f2c] -ml-[2px]'
                                           : 'text-white/60 hover:text-white hover:bg-white/5'
                                       }`}
                                     >

@@ -312,10 +312,35 @@ for (const hub of MODULE_NAV_HUBS) {
   for (const item of hub.items) HUB_BY_FEATURE.set(item.featureId, hub);
 }
 
+let dynamicHubs: ModuleNavHub[] = [];
+const DYNAMIC_HUB_BY_FEATURE = new Map<string, ModuleNavHub>();
+const DYNAMIC_HUB_BY_ID = new Map<string, ModuleNavHub>();
+
+/**
+ * Registers dynamic command hubs generated from the navigation catalog (GET /api/me/navigation).
+ */
+export function registerDynamicNavHubs(hubs: ModuleNavHub[]): void {
+  dynamicHubs = hubs;
+  DYNAMIC_HUB_BY_FEATURE.clear();
+  DYNAMIC_HUB_BY_ID.clear();
+  for (const hub of hubs) {
+    DYNAMIC_HUB_BY_ID.set(hub.hubId, hub);
+    DYNAMIC_HUB_BY_ID.set(hub.appId, hub);
+    for (const item of hub.items) {
+      DYNAMIC_HUB_BY_FEATURE.set(item.featureId, hub);
+    }
+  }
+}
+
+/** Returns the active dynamic command hubs list. */
+export function getDynamicNavHubs(): ModuleNavHub[] {
+  return dynamicHubs;
+}
+
 /** Module to which a featureId belongs (to mount its bar), or null. */
 export const navHubForFeature = (featureId: string): ModuleNavHub | null =>
-  HUB_BY_FEATURE.get(featureId) ?? null;
+  DYNAMIC_HUB_BY_FEATURE.get(featureId) ?? HUB_BY_FEATURE.get(featureId) ?? null;
 
 /** Module whose Command Hub is this synthetic featureId (`<appId>-hub`), or null. */
 export const navHubById = (hubId: string): ModuleNavHub | null =>
-  MODULE_NAV_HUBS.find((hub) => hub.hubId === hubId) ?? null;
+  DYNAMIC_HUB_BY_ID.get(hubId) ?? MODULE_NAV_HUBS.find((hub) => hub.hubId === hubId || hub.appId === hubId) ?? null;

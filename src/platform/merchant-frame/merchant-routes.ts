@@ -95,6 +95,8 @@ const SECTION_PREFIXES = [
   '/online-ordering',
   '/reservations',
   '/delivery',
+  '/app',
+  '/hub',
 ];
 
 /** Rutas que App.tsx registra para MerchantFrame. */
@@ -112,6 +114,14 @@ export function getNavFromPath(
 ): RouteNav | null {
   const exact = EXACT_ROUTES[path];
   if (exact) return exact;
+
+  if (path.startsWith('/app/') || path.startsWith('/hub/')) {
+    const appCode = path.replace(/^\/(app|hub)\//, '').split('/')[0];
+    return {
+      category: locationState?.activeCategory || 'core',
+      tab: `${appCode}-hub`,
+    };
+  }
 
   if (path.startsWith('/reservations/')) {
     return { category: OPS, tab: featureIdForReservationPath(path) };
