@@ -268,7 +268,12 @@ export const MerchantFrame: React.FC = () => {
       'sub-plans-core',
       'sub-apps-mapping'
     ];
-    const isSaaSTab = profile?.role === 'SaaS Owner' || exclusiveSaaS.includes(activeTab) || activeCategory === 'saas';
+    const isSaaSTab =
+      profile?.role === 'SaaS Owner' ||
+      profile?.role === 'portal_admin' ||
+      profile?.role === 'portal_user' ||
+      exclusiveSaaS.includes(activeTab) ||
+      activeCategory === 'saas';
 
     if (isSaaSTab) {
       rootEl?.classList.remove('restaurant-active');
@@ -339,7 +344,11 @@ export const MerchantFrame: React.FC = () => {
   const moduleNavHub = navHubForFeature(activeTab);
 
   const goToDashboard = () => {
-    if (profile?.role === 'SaaS Owner') {
+    if (
+      profile?.role === 'SaaS Owner' ||
+      profile?.role === 'portal_admin' ||
+      profile?.role === 'portal_user'
+    ) {
       setActiveCategory('saas');
       setActiveTab('saas-dashboard');
     } else {
@@ -421,7 +430,11 @@ export const MerchantFrame: React.FC = () => {
             if (moduleNavHub) navigateToFeature(moduleNavHub.hubId);
           }}
           onBackToDashboard={() => {
-            if (profile?.role === 'SaaS Owner') {
+            if (
+              profile?.role === 'SaaS Owner' ||
+              profile?.role === 'portal_admin' ||
+              profile?.role === 'portal_user'
+            ) {
               setActiveTab('saas-dashboard');
             } else {
               setActiveCategory('core');
@@ -456,7 +469,9 @@ export const MerchantFrame: React.FC = () => {
               <p className="font-semibold">No menu items match</p>
               <p className="text-[10px] text-white/40">"{sidebarSearchQuery}"</p>
             </div>
-          ) : profile?.role === 'SaaS Owner' ? (
+          ) : profile?.role === 'SaaS Owner' ||
+            profile?.role === 'portal_admin' ||
+            profile?.role === 'portal_user' ? (
             filteredNavCategories.map((cat) => {
               const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
               const hasActiveTab = cat.applications.some(app =>
@@ -899,31 +914,42 @@ export const MerchantFrame: React.FC = () => {
               <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Role / Environment</p>
               <select
                 aria-label="Role / Environment"
-                value={profile?.role || 'General Manager'}
+                value={profile?.role || 'merchant_admin'}
                 onChange={(e) => {
                   const role = e.target.value;
                   setSimulationRole(role);
-                  if (role === 'SaaS Owner') {
+                  if (
+                    role === 'portal_admin' ||
+                    role === 'portal_user' ||
+                    role === 'SaaS Owner'
+                  ) {
                     setActiveCategory('saas');
                     setActiveTab('saas-dashboard');
-                  } else if (role === 'Super Admin (All Access)') {
+                  } else if (
+                    role === 'super_admin' ||
+                    role === 'Super Admin (All Access)'
+                  ) {
                     setActiveCategory('core');
                     setActiveTab('dashboard');
                   } else {
                     setActiveCategory('core');
                     setActiveTab('dashboard');
                   }
-                  setRefreshTrigger(p => p + 1);
+                  setRefreshTrigger((p) => p + 1);
                 }}
                 className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
               >
-                <option value="General Manager">General Manager (Merchant)</option>
-                <option value="SaaS Owner">SaaS Owner (Platform SaaS)</option>
-                <option value="Super Admin (All Access)">Super Admin (All Access)</option>
+                <option value="super_admin">Super Admin (All Access)</option>
+                <option value="portal_admin">Portal Admin (Platform SaaS)</option>
+                <option value="portal_user">Portal User (SaaS Read-Only)</option>
+                <option value="merchant_admin">Merchant Admin (General Manager)</option>
+                <option value="merchant_user">Merchant User (Staff)</option>
               </select>
             </div>
 
-            {profile?.role !== 'SaaS Owner' && (
+            {profile?.role !== 'SaaS Owner' &&
+              profile?.role !== 'portal_admin' &&
+              profile?.role !== 'portal_user' && (
               <div className="border-t border-white/10 pt-2">
                 <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">Merchant Plan (Tier)</p>
                 <select
@@ -939,7 +965,7 @@ export const MerchantFrame: React.FC = () => {
                       setActiveCategory('core');
                       setActiveTab('dashboard');
                     }
-                    setRefreshTrigger(p => p + 1);
+                    setRefreshTrigger((p) => p + 1);
                   }}
                   className="w-full bg-[#111111] text-white border border-white/20 text-xs p-1 rounded focus:outline-none focus:border-[#d51f2c]"
                 >
@@ -950,7 +976,9 @@ export const MerchantFrame: React.FC = () => {
               </div>
             )}
 
-            {profile?.role === 'SaaS Owner' ? (
+            {profile?.role === 'SaaS Owner' ||
+            profile?.role === 'portal_admin' ||
+            profile?.role === 'portal_user' ? (
               <div className="border-t border-white/10 pt-2">
                 <p className="font-bold text-white uppercase text-[9px] tracking-wider mb-1">SaaS Status</p>
                 <button

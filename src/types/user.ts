@@ -3,6 +3,7 @@
 // Declared as const objects (not TS `enum`) because the frontend tsconfig
 // enables `erasableSyntaxOnly`, which forbids runtime-emitting enums.
 export const UserRole = {
+  SUPER_ADMIN: 'super_admin',
   PORTAL_ADMIN: 'portal_admin',
   PORTAL_USER: 'portal_user',
   MERCHANT_ADMIN: 'merchant_admin',

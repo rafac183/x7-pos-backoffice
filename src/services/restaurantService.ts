@@ -52,7 +52,7 @@ export interface SystemNotification {
 let simulate401 = false;
 let isUserAuthenticated = true;
 let currentSimulationPlanId = 2;
-let currentSimulationRole = 'General Manager';
+let currentSimulationRole = 'merchant_admin';
 
 export const setSimulate401 = (value: boolean) => {
   simulate401 = value;
@@ -261,7 +261,7 @@ window.fetch = async function (input, _init) {
       const profile = {
         name: 'Marco Rossi',
         role: currentSimulationRole,
-        portraitUrl: currentSimulationRole === 'SaaS Owner' 
+        portraitUrl: (currentSimulationRole === 'SaaS Owner' || currentSimulationRole === 'portal_admin' || currentSimulationRole === 'portal_user')
           ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&q=80' 
           : 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
         Plan_id: currentSimulationPlanId,

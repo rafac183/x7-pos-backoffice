@@ -63,10 +63,16 @@ export interface AccessMatrixEntry {
 /** Reference sheet describing what each role can do (Roles & Access Matrix). */
 export const ROLE_MATRIX: AccessMatrixEntry[] = [
   {
+    key: UserRole.SUPER_ADMIN,
+    label: 'Super Admin',
+    description:
+      'Global system administrator with unconstrained access across SaaS and Merchant domains.',
+  },
+  {
     key: UserRole.PORTAL_ADMIN,
     label: 'Portal Admin',
     description:
-      'Platform super administrator. Full control over the SaaS backoffice, companies, and every tenant.',
+      'Platform administrator. Full control over SaaS backoffice, companies, subscription plans, and tenant provisioning.',
   },
   {
     key: UserRole.PORTAL_USER,

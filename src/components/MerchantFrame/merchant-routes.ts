@@ -121,7 +121,9 @@ export function getNavFromPath(
   }
   if (path === '/dashboard') {
     const fallback: RouteNav =
-      profileRole === 'SaaS Owner'
+      profileRole === 'SaaS Owner' ||
+      profileRole === 'portal_admin' ||
+      profileRole === 'portal_user'
         ? { category: 'saas', tab: 'saas-dashboard' }
         : { category: 'core', tab: 'dashboard' };
     return {

@@ -5,6 +5,7 @@ import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saa
 import { SubscriptionPlansView } from './views/SubscriptionPlansView';
 import { SaasLoginOverlay } from './auth/SaasLoginOverlay';
 import { isSaasAuthenticated } from '../../lib/saas-auth-storage';
+import { getStoredUser } from '../../lib/auth-storage';
 import logoX7 from '../../assets/logo-x7.png';
 import { PlatformApplicationsView } from './views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from './views/PlatformFeatureCatalogView';
@@ -399,6 +400,18 @@ export const SaaSFrame: React.FC = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
               Query: "{debouncedSearchQuery}"
             </div>
+          )}
+
+          {/* Super Admin Frame Switcher to Merchant */}
+          {getStoredUser()?.role === 'super_admin' && (
+            <a
+              href="/dashboard"
+              className="px-2.5 py-1 bg-[#ae001a] hover:bg-[#930015] text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-colors duration-200 shadow-sm cursor-pointer mr-1"
+              title="Switch to Merchant Backoffice"
+            >
+              <span className="material-symbols-outlined text-[16px]">storefront</span>
+              <span className="hidden sm:inline text-[11px]">Merchant POS</span>
+            </a>
           )}
 
           <button

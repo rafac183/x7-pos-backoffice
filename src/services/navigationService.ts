@@ -60,8 +60,14 @@ export const navigationService = {
         }
       });
 
-      const isSaaSMode = userRole === 'SaaS Owner';
-      const isGodMode = userRole === 'Super Admin (All Access)' || userRole === 'God Mode';
+      const isSaaSMode =
+        userRole === 'SaaS Owner' ||
+        userRole === 'portal_admin' ||
+        userRole === 'portal_user';
+      const isGodMode =
+        userRole === 'Super Admin (All Access)' ||
+        userRole === 'God Mode' ||
+        userRole === 'super_admin';
 
       // 2. Parse and filter features (L3)
       const features: NavFeature[] = featsData

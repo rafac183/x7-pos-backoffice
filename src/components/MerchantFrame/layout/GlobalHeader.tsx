@@ -386,7 +386,11 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'QR Menu Items';
   } else if (activeTab === 'qr-code-deployments') {
     friendlyTitle = 'QR Deployments';
-  } else if (profile?.role === 'SaaS Owner') {
+  } else if (
+    profile?.role === 'SaaS Owner' ||
+    profile?.role === 'portal_admin' ||
+    profile?.role === 'portal_user'
+  ) {
     if (activeTab === 'subscription') {
       friendlyTitle = 'Subscription System';
     } else if (activeTab === 'companies') {
@@ -632,6 +636,19 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               <span className="material-symbols-outlined text-base">punch_clock</span>
               <span className="hidden lg:inline text-[11px]">Time Clock</span>
             </button>
+
+            {/* Super Admin Frame Switcher to SaaS */}
+            {(profile?.role === 'super_admin' ||
+              profile?.role === 'Super Admin (All Access)') && (
+              <a
+                href="/saas-admin"
+                className="px-2.5 py-1 bg-[#222222] hover:bg-[#333333] text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-colors duration-200 border border-white/20 shadow-sm cursor-pointer"
+                title="Switch to SaaS Platform Portal"
+              >
+                <span className="material-symbols-outlined text-[16px] text-amber-400">admin_panel_settings</span>
+                <span className="hidden sm:inline text-[11px]">SaaS Portal</span>
+              </a>
+            )}
 
             {/* Help Center Utility */}
             <a
