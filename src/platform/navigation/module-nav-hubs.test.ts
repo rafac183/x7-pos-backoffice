@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// `?raw` (Vite) instead of node:fs: the app's tsconfig does not load Node. types.
-import featuresTxt from '../../../public/Features.txt?raw';
 import { REGISTERED_VIEW_TABS } from '@/platform/merchant-frame/merchant-view-registry';
 import { MODULE_NAV_HUBS, navHubById, navHubForFeature } from '@/platform/navigation/module-nav-hubs';
 
@@ -146,14 +144,12 @@ const STORY_LABELS: Record<string, { back: string; items: string[] }> = {
 };
 
 const featuresByApp = (): Map<string, string[]> => {
-  const rows = featuresTxt
-    .split(/\r?\n/)
-    .slice(1)
-    .filter(Boolean)
-    .map((line: string) => line.split('|'));
   const map = new Map<string, string[]>();
-  for (const [featureId, , appId] of rows) {
-    map.set(appId, [...(map.get(appId) ?? []), featureId]);
+  for (const hub of MODULE_NAV_HUBS) {
+    map.set(
+      hub.appId,
+      hub.items.map((i) => i.featureId),
+    );
   }
   return map;
 };

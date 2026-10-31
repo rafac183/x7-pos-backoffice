@@ -1,3 +1,5 @@
+import { getStoredUser } from '@/platform/auth/lib/auth-storage';
+
 export interface UserProfile {
   name: string;
   role: string;
@@ -88,8 +90,18 @@ const checkAuth = () => {
 
 export const restaurantService = {
   async getUserProfile(): Promise<UserProfile> {
-    await delay(400);
+    await delay(100);
     checkAuth();
+    const stored = getStoredUser();
+    if (stored) {
+      return {
+        name: stored.email ? stored.email.split('@')[0] : 'Merchant Admin',
+        role: stored.role || currentSimulationRole,
+        portraitUrl: 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
+        Plan_id: stored.planId ?? currentSimulationPlanId,
+        company_id: stored.merchant?.id,
+      };
+    }
     return {
       name: 'Marco Rossi',
       role: currentSimulationRole,
@@ -245,45 +257,4 @@ export const restaurantService = {
     await delay(500);
     isUserAuthenticated = false;
   },
-};
-
-const originalFetch = window.fetch;
-window.fetch = async function (input, _init) {
-  let url = '';
-  try {
-    url = typeof input === 'string' ? input : (input instanceof Request ? input.url : (input instanceof URL ? input.href : ''));
-  } catch (e) {
-    console.error('Error parsing fetch input url:', e);
-  }
-  
-  if (url && typeof url === 'string') {
-    if (url.includes('/api/v1/auth/profile')) {
-      const profile = {
-        name: 'Marco Rossi',
-        role: currentSimulationRole,
-        portraitUrl: (currentSimulationRole === 'SaaS Owner' || currentSimulationRole === 'portal_admin' || currentSimulationRole === 'portal_user')
-          ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&q=80' 
-          : 'https://images.unsplash.com/photo-1579038773843-c5a52b90ea0a?w=80&h=80&fit=crop&q=80',
-        Plan_id: currentSimulationPlanId,
-        company_id: 1
-      };
-      return new Response(JSON.stringify(profile), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
-    if (url.includes('/api/v1/establishments/tier')) {
-      let tierName = 'Full Restaurant';
-      if (currentSimulationPlanId === 1) tierName = 'Quick Service';
-      if (currentSimulationPlanId === 3) tierName = 'Enterprise';
-      
-      return new Response(JSON.stringify({ tier: tierName }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  }
-  
-  return originalFetch(input, _init);
 };

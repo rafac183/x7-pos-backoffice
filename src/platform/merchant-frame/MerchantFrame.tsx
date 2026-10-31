@@ -737,9 +737,10 @@ export const MerchantFrame: React.FC = () => {
 
       <LoginGatewayModal isOpen={false} onLoginSuccess={handleLoginSuccess} />
 
-      <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
-        isSidebarCollapsed ? 'left-6' : 'left-[272px]'
-      }`}>
+      {import.meta.env.DEV && (
+        <div className={`fixed bottom-16 z-[9999] transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? 'left-6' : 'left-[272px]'
+        }`}>
         <button
           onClick={() => setShowDemoPanel(!showDemoPanel)}
           className="w-10 h-10 bg-[#222222] hover:bg-[#d51f2c] text-white rounded-full shadow-lg flex items-center justify-center border border-white/20 transition-all active:scale-95"
@@ -855,6 +856,7 @@ export const MerchantFrame: React.FC = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };
