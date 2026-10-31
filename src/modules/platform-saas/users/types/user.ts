@@ -93,3 +93,34 @@ export interface UpdateUserPayload {
   role?: string;
   scope?: string;
 }
+
+export interface UserFeatureItem {
+  featureId: number;
+  code: string;
+  name: string;
+  applicationId: number;
+  applicationName: string;
+  categoryId: number;
+  categoryName: string;
+  basePermission: boolean;
+  override: 'inherit' | 'allow' | 'deny';
+  effective: boolean;
+  grantedBy: number | null;
+  updatedAt: string | null;
+}
+
+export interface UserFeatureOverridesResponse {
+  userId: number;
+  username: string;
+  email: string;
+  shiftRole: string | null;
+  companyId: number;
+  planId: number | null;
+  features: UserFeatureItem[];
+}
+
+export interface UpdateFeatureOverrideItem {
+  featureId: number;
+  effect: 'inherit' | 'allow' | 'deny';
+}
+

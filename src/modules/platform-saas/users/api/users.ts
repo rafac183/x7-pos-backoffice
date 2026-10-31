@@ -11,6 +11,8 @@ import type {
   UserHrSummaryResponse,
   UserMutationResponse,
   UsersListResponse,
+  UserFeatureOverridesResponse,
+  UpdateFeatureOverrideItem,
 } from '@/modules/platform-saas/users/types/user';
 
 /** Resolves the logged-in administrator's merchant id (used to anchor new users). */
@@ -113,3 +115,28 @@ export async function getUserHrSummary(id: number): Promise<UserHrSummary> {
 
   return json.data;
 }
+
+export async function getUserFeatureOverrides(
+  userId: number,
+): Promise<UserFeatureOverridesResponse> {
+  return apiRequest<UserFeatureOverridesResponse>(
+    `/users/${userId}/feature-overrides`,
+    { method: 'GET' },
+    'Failed to load user feature overrides. Please try again.',
+  );
+}
+
+export async function updateUserFeatureOverrides(
+  userId: number,
+  overrides: UpdateFeatureOverrideItem[],
+): Promise<UserFeatureOverridesResponse> {
+  return apiRequest<UserFeatureOverridesResponse>(
+    `/users/${userId}/feature-overrides`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ overrides }),
+    },
+    'Failed to update user feature overrides. Please try again.',
+  );
+}
+

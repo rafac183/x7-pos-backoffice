@@ -37,6 +37,7 @@ import { RolesAccessMatrixModal } from '@/modules/platform-saas/users/views/Role
 import { QuickLaunchPanel } from '@/shared/components/QuickLaunchPanel';
 import { UserEditModal } from '@/modules/platform-saas/users/views/UserEditModal';
 import { UserHrSummaryModal } from '@/modules/finance-hr/hr/views/UserHrSummaryModal';
+import { CollaboratorFeatureOverridesDrawer } from '@/modules/platform-saas/users/views/CollaboratorFeatureOverridesDrawer';
 import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
@@ -89,6 +90,8 @@ export const UserManagementView: React.FC = () => {
   const [hrSummary, setHrSummary] = useState<UserHrSummary | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const [overridesTargetUser, setOverridesTargetUser] = useState<MerchantUser | null>(null);
 
   const [isRolesMatrixOpen, setIsRolesMatrixOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
@@ -516,6 +519,17 @@ export const UserManagementView: React.FC = () => {
                                 edit
                               </span>
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setOverridesTargetUser(user)}
+                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              title="Permissions & Overrides"
+                              aria-label={`Permissions & Overrides for ${userLabel(user)}`}
+                            >
+                              <span className="material-symbols-outlined text-[20px]">
+                                shield_person
+                              </span>
+                            </button>
                             <StatusToggleButton
                               status={user.isActive ? 'active' : 'inactive'}
                               entityLabel={userLabel(user)}
@@ -620,6 +634,18 @@ export const UserManagementView: React.FC = () => {
           error={summaryError}
           onClose={closeUserSummary}
           onLinkHrProfile={handleLinkHrProfile}
+        />
+      )}
+
+      {overridesTargetUser && (
+        <CollaboratorFeatureOverridesDrawer
+          user={overridesTargetUser}
+          onClose={() => setOverridesTargetUser(null)}
+          onSuccess={(updated) => {
+            setSuccessMessage(
+              `Feature overrides updated successfully for ${updated.username}`,
+            );
+          }}
         />
       )}
 
