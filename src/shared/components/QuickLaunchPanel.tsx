@@ -43,7 +43,7 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
                 {action.icon && (
                   <span className="material-symbols-outlined text-[18px] no-underline">{action.icon}</span>
                 )}
-                <span className="underline underline-offset-4 decoration-2">{action.label}</span>
+                <span aria-current="page" className="underline underline-offset-4 decoration-2">{action.label}</span>
               </span>
             );
           }

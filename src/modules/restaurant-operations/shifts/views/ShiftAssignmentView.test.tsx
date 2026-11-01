@@ -5,7 +5,7 @@ import * as shiftsApi from '@/modules/restaurant-operations/shifts/api/shifts';
 import type { ShiftAssignment, ShiftSwapRequest } from '@/modules/restaurant-operations/shifts/types/shifts';
 
 vi.mock('@/modules/restaurant-operations/shifts/api/shifts', async () => {
-  const actual = await vi.importActual<typeof import('@/modules/restaurant-operations/shifts/api/shifts')>('../../../../api/shifts');
+  const actual = await vi.importActual<typeof import('@/modules/restaurant-operations/shifts/api/shifts')>('@/modules/restaurant-operations/shifts/api/shifts');
   return {
     ...actual,
     fetchCollaborators: vi.fn(),

@@ -6,7 +6,7 @@ import type { TimeEntry } from '@/modules/restaurant-operations/shifts/types/att
 import * as attendanceApi from '@/modules/restaurant-operations/shifts/api/attendance';
 
 vi.mock('@/modules/restaurant-operations/shifts/api/attendance', async () => {
-  const actual = await vi.importActual<typeof import('@/modules/restaurant-operations/shifts/api/attendance')>('../../../../api/attendance');
+  const actual = await vi.importActual<typeof import('@/modules/restaurant-operations/shifts/api/attendance')>('@/modules/restaurant-operations/shifts/api/attendance');
   return {
     ...actual,
     loadTimeEntries: vi.fn(),
